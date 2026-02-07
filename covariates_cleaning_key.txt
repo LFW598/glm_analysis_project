@@ -1,0 +1,43 @@
+med_cap = median cap score
+iqr_cap = iqr of caps
+
+alc_ever = every drank: 1 yes 2 no
+alc_times_yr = how many times did you drink in last year, 0 never, 1 every day, 2 nearly every day, 3 3-4 a week, 4 twice a week, 5 once a week, 6 two to three times a month, 7 once a month, 8 7-11 times a year, 9 3-6 times a year, 10 1-2 a year
+alc_binge_times_yr = how many times did you have 8+ drinks last year, same as above
+
+cig_smoker_ever = over 100 cigarettes in life, 1 yes, 2 no
+
+sleep_weekday = avg sleep hours on weekday
+sleep_weekend = avg sleep hours on weekend
+
+health_ins = health insurance 1 yes , 2 no
+no_ins_12_mon = not had health insurance in past 12 months, 1 yes, 2 no
+priv_health_ins = private health insurance 1 yes, 2 no
+
+insulin = uU/mL insulin level
+
+bmi = bmi
+
+sex = 1 male, 2 female
+age = age in years
+race = 1 mexican american, 2 other hispanic, 3 NH white, 4 NH Black, 6 NH Asian, 7 Other race
+born_us = 1 yes, 2 no
+edu_lvl = 1 no hs, 2 hs dropout, 3 hs grad, 4 AA, 5 bach or higher
+preg = 1 yes, 2 no, 3 not sure but probably not
+fam_inc_to_poverty = ratio of family income to poverty line, 0-4.99, 5 means 5 times higher
+
+diabetes = 1 yes, 2 no, 3 borderline
+prediabetes = 1 yes, 2 no
+age_of_diabetes = age at diabetes diagnosis
+
+freq_mod_ex = 1-180
+unit_mod_ex = D day, M month, W week, Y Year
+avg_mins_mod_ex = average minutes of such moderate exercise
+freq_vig_ex = 1-180
+unit_vig_ex = D day, M month, W week, Y Year
+avg_mins_vig_ex = average minutes of such vigorous exercise
+mins_seden_daily = average minutes spent sedentary daily
+
+hep_b = 1 yes, 2 no
+
+diet measurements were averaged over two responses which were about 3-10 days apart in which participants were asked to recall what they last ate
