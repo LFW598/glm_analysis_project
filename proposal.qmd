@@ -210,6 +210,8 @@ The above are all hypothesized to have an effect on an individual's CAP score an
 import pandas as pd
 import numpy as np
 
+# reading in xlsx data
+
 alc_use = pd.read_sas('./data/alcohol_use.xpt', format = 'xport')
 cig_smoke = pd.read_sas('./data/cigarette_smoking.xpt', format = 'xport')
 demographics = pd.read_sas('./data/demographics.xpt', format = 'xport')
@@ -228,6 +230,8 @@ hep_b = pd.read_sas('./data/hep_b.xpt', format = 'xport')
 ```{python sorting and merging data Appendix}
 # | eval: false
 
+# taking only the data we want from each xlsx file
+
 alc_use = alc_use[['SEQN', 'ALQ111', 'ALQ121', 'ALQ280']]
 cig_smoke = cig_smoke[['SEQN', 'SMQ020']]
 sleep = sleep[['SEQN', 'SLD012', 'SLD013']]
@@ -242,12 +246,15 @@ diabetes = diabetes[['SEQN', 'DIQ010', 'DIQ160', 'DID040']]
 
 nhanes_df = liver_ultra.copy()
 
+# merging the datasets
+
 for df in [alc_use, cig_smoke, sleep, health_ins, insulin, bmi, demographics, nutrient_day_1, nutrient_day_2, diabetes, physical_act_a, hep_b]:
     nhanes_df = nhanes_df.merge(df, on = 'SEQN', how = 'left')
 ```
 
 ```{python early data cleaning Appendix}
 # | eval: false
+
 # simplifying diet data
 
 day1 = nhanes_df.iloc[:, 21:31]
@@ -259,6 +266,8 @@ col_names = ['kcal', 'carb', 'sugar', 'fiber', 'fat', 'vit_e', 'chol', 'water', 
 day_avg_df = pd.DataFrame(
     day_avg,
     columns = col_names)
+
+# simplifying column names
 
 nhanes_df[col_names] = day_avg_df
 nhanes_df = nhanes_df.drop(columns = nhanes_df.columns[21:41])
@@ -295,6 +304,8 @@ nhanes_df = nhanes_df.rename(columns = {
     'PAD820': 'avg_mins_vig_ex',
     'PAD680': 'mins_seden_daily',
     'HEQ010': 'hep_b',})
+
+# transforming refused and don't know responses to missing
 
 for c in ['freq_mod_ex', 'freq_vig_ex', 'mins_seden_daily', 'avg_mins_mod_ex', 'avg_mins_vig_ex']:
     nhanes_df[c] = (
@@ -342,12 +353,16 @@ ex_conversion = {
     '': 1
 }
 
+# converting exercise data to per week exercise data for consistency between respondees
+
 nhanes_df['mod_ex_per_week'] = nhanes_df['freq_mod_ex'] * nhanes_df['unit_mod_ex'].map(ex_conversion)
 
 nhanes_df['vig_ex_per_week'] = nhanes_df['freq_vig_ex'] * nhanes_df['unit_vig_ex'].map(ex_conversion)
 
 nhanes_df = nhanes_df[nhanes_df['age'] >= 18].reset_index(drop = True)
 nhanes_df = nhanes_df.dropna(subset=['med_cap']).reset_index(drop = True)
+
+# creating categories from median cap score associated with fatty liver disease
 
 bins = [100, 238, 260, 290, np.inf]
 labels = [0, 1, 2, 3]
@@ -363,10 +378,21 @@ nhanes_df['cap_cat'] = pd.cut(
 ```{python dataset summary Appendix}
 # | eval: false
 
+# showing the amount of observations and covariates
+
 print("Number of observations (rows):", nhanes_df.shape[0])
 print("Number of variables (columns):", nhanes_df.shape[1])
 
 print("\nColumn names:")
 for col in nhanes_df.columns:
     print("-", col)
+```
+
+
+```{python}
+# | eval: false
+
+# writing this dataframe so I can use it in eda file
+
+nhanes_df.to_csv('./data/starting_nhanes_data.csv', index = False)
 ```

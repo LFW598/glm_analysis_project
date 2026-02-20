@@ -41,3 +41,9 @@ mins_seden_daily = average minutes spent sedentary daily
 hep_b = 1 yes, 2 no
 
 diet measurements were averaged over two responses which were about 3-10 days apart in which participants were asked to recall what they last ate
+
+AFTER CLEANING:
+
+anything that is 1 and 2 goes to 0 and 1
+diab 0 is nothing, 1 is prediabtes or borderline, 2 is diabetes proper
+ins = no insurance = 0, public insurance = 1, private insurance = 2
