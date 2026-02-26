@@ -23,7 +23,7 @@ nhanes_df = nhanes_df_start
 
 In this Exploratory Data Analysis, I plan to prepare my data to be modeled in the future stages. This includes a few steps. First, I will examine missing value counts within my dataset to discover which covariates to keep, drop, or impute. Then I will examine the distribution of my covariates to better understand the data and identify outliers. I will then examine covariance and graphical comparisons of variables in order to grasp the relationship the covariates have with each other before diving into their relationship with the cap scores. Penultimately, I will consider variable transformations that seem appropriate in order to set up a better linear relationship in my model. Finally, I will propose a model building plan that I hope to follow for the remainder of the project.
 
-**A NOTE** This EDA is 35 pages, FAR LONGER than what I plan to include as EDA in my final report. obviously. I will cherry pick the most interesting and necessary results from this for my final report.
+**A NOTE** This EDA is 32 pages, FAR LONGER than what I plan to include as EDA in my final report. obviously. I will cherry pick the most interesting and necessary results from this for my final report.
 
 ```{python variable conversion}
 # | echo: false
@@ -56,11 +56,16 @@ nhanes_df = nhanes_df.drop(columns = ['health_ins', 'priv_health_ins'])
 nhanes_df['mod_ex_mins_per_week'] = nhanes_df['mod_ex_per_week'] * nhanes_df['avg_mins_mod_ex']
 nhanes_df['vig_ex_mins_per_week'] = nhanes_df['vig_ex_per_week'] * nhanes_df['avg_mins_vig_ex']
 
-# recoding alcohol to be in terms of days of the year, more readable
+# recoding alcohol to be in terms of days of the year, more readable, and also imputing 0s where alc_ever is 0 and alc_times_yr is na
 
 nhanes_df['alc_times_yr'] = nhanes_df['alc_times_yr'].replace({1: 365, 2: 260, 3: 182.5, 4: 104, 5: 52, 6: 12, 7: 30, 8: 9, 9: 4.5, 10: 1.5})
 
 nhanes_df['alc_binge_times_yr'] = nhanes_df['alc_binge_times_yr'].replace({1: 365, 2: 260, 3: 182.5, 4: 104, 5: 52, 6:12, 8: 9, 9: 4.5, 10: 1.5})
+
+nhanes_df.loc[
+    (nhanes_df["alc_times_yr"].isna()) & (nhanes_df["alc_ever"] == 0),
+    "alc_times_yr"
+] = 0
 ```
 
 ## Examining Missing Values
@@ -197,7 +202,14 @@ nhanes_df = nhanes_df.dropna(subset = ['kcal'])
 nhanes_df.isna().sum()
 ```
 
-Observe that dropping those individuals who didn't complete the diet data dropped NA's in other column at a faster rate, meaning those who diet data wasn't obtained for were more likely to have less data in general, dropping them again seems like a justified choice. Our dataset now contains 4137 observations.
+Observe that dropping those individuals who didn't complete the diet data dropped NA's in other column at a faster rate, meaning those who diet data wasn't obtained for were more likely to have less data in general, dropping them again seems like a justified choice. Our dataset now contains 4137 observations. However, we observe there to be 772 missing observations in mod_ex_mins_per_week. This is high missingness, almost 20%, and this variable likely has some masking and collinearity issues, as it accounts for only moderate exercise when vigourous exercise was measured but had to be removed. It also likely has high collinearity with mins_seden_daily, as sedentary activity and physical activity are intuitively inverses of each other. Hence, sedentary activity is likely a better measure of physical activity, as it is the inverse of both moderate and vigourous activity measurements. Hence due to high missingness, inference issues, and multicollinearity, we will drop mod_ex_mins_per_week and mod_ex_per_week. We now also drop all rows containing NA values, so our EDA will be focused towards the same dataset to be used in our model. This dataset contains a total of 3004 observations.
+
+```{python dropping mod_ex_mins_per_week}
+# | echo: false
+
+nhanes_df = nhanes_df.drop(columns = ['mod_ex_mins_per_week', 'mod_ex_per_week'])
+nhanes_df = nhanes_df.dropna()
+```
 
 ## Data Visualization (Discrete Covariates)
 
@@ -236,7 +248,7 @@ alc_times_yr_plot.axhline(290, color="red")
 plt.show()
 ```
 
-We also need to investigate what do with alc_times_yr variable. Its a categorical variable which represents the amount of days someone has drank in the last year. This was created using information on how many drinks someone had a week on average in the last year. The problem is, there are 11 categories, so we need to find a way to truncate the data, as 11 dummy variables, especially with some at low samples will reduce power. I will recategorize to  0 never, 1 at most monthly, 2 more than monthly to weekly, 3 every other day to daily for a total of four levels. We will also make NAs 0 if the respondent indicated they have never drank in the alc_ever column. We will then revisualize.
+We also need to investigate what do with alc_times_yr variable. Its a categorical variable which represents the amount of days someone has drank in the last year. This was created using information on how many drinks someone had a week on average in the last year. The problem is, there are 11 categories, so we need to find a way to truncate the data, as 11 dummy variables, especially with some at low samples will reduce power. I will recategorize to 0 never or not in the last 12 months, 1 at most monthly, 2 more than monthly to weekly, 3 every other day to daily for a total of four levels. We will also make NAs 0 if the respondent indicated they have never drank in the alc_ever column. We will then revisualize.
 
 ```{python alc_times_yr_recat}
 # | echo: false
@@ -308,7 +320,7 @@ no_ins_12_mon_plot.axhline(290, color="red")
 plt.show()
 ```
 
-Here we observe oddly that those who have lost insurance in the past 12 months have a lower median cap score, but I attribute this to sample size.
+Here we observe oddly that those who have lost insurance in the past 12 months have a lower median cap score, but I attribute this possibly to lower sample size.
 
 ```{python vis sex}
 # | echo: false
@@ -358,7 +370,7 @@ race_plot.axhline(290, color="red")
 plt.show()
 ```
 
-Here we see Mexican Americans to have higher CAP score distribution, while Asians have a lower CAP score distribution
+Here we see Mexican Americans to have higher CAP score distribution, while Asians have a lower CAP score distribution.
 
 ```{python vis born_us}
 # | echo: false
@@ -407,7 +419,7 @@ edu_lvl_plot.axhline(290, color="red")
 plt.show()
 ```
 
-Those with college degrees tend to have lower median CAP scores it seems.
+Those with college degrees tend to have lower median CAP scores it seems, nad those who dropped out of high school slightly higher.
 
 ```{python vis hep_b}
 # | echo: false
@@ -427,8 +439,7 @@ hep_b_plot.axhline(290, color="red")
 plt.show()
 ```
 
-Interstingly, the Hepatitis B distributions appear the same. This may be because those with the disease have advanced warning about Fatty Liver Disease and more doctor monitoring.
-
+Interstingly, the Hepatitis B distributions appear the same, with hep_b having a greater range in their cap scores. It seems hep_b doesn't have an effect on FLD like we thought it might.
 
 ```{python vis diab}
 # | echo: false
@@ -518,7 +529,7 @@ plt.xticks(bins)
 plt.show()
 ```
 
-We see above that most individuals are concentrated with a BMI below 30. We also see a trend in FLD though, as BMI goes up, the proportion of people in higher FLD categories also increases. BMI will likely have a positive effect on FLD classification.
+We see above that most individuals are concentrated with a BMI below 32.5. We also see a trend in FLD though, as BMI goes up, the proportion of people in higher FLD categories also increases. BMI will likely have a positive effect on FLD classification.
 
 ```{python age_vis}
 # | echo: false
@@ -542,7 +553,7 @@ plt.xticks(bins)
 plt.show()
 ```
 
-From this age histogram, we see most of our participanst are older, with 50-80 year olds making up a majority of the sample. We also see that at young age bins, the proportion of people with high FLD categorization is low, and it increases with age.
+From this age histogram, we see most of our participants are older, with 50-80 year olds making up a majority of the sample. We also see that at young age bins, the proportion of people with high FLD categorization is low, and it increases with age.
 
 ```{python fam_inc_to_pov_vis}
 # | echo: false
@@ -616,106 +627,6 @@ plt.show()
 
 Most individuals get between 6 to 10 hours of sleep, and interestingly, those with 4 to 6 and 10 to 12 have higher rates of FLD. Possibly this extra sleep is an indicator of sedentary lifestyle. This distribution also seems to follow a normal distribution centered at 8.
 
-```{python mod_ex_per_week_vis}
-# | echo: false
-
-binwidth = 20
-min_val = nhanes_df["mod_ex_per_week"].min()
-max_val = nhanes_df["mod_ex_per_week"].max()
-bins = np.arange(min_val, max_val + binwidth, binwidth)
-
-mod_ex_per_week_plot = sns.histplot(
-    data = nhanes_df_plot,
-    x = 'mod_ex_per_week',
-    hue = 'FLD Category',
-    multiple = 'dodge',
-    bins = bins
-)
-
-plt.xlabel('Moderate Exercise Instances (Week)')
-plt.title('Histogram of Moderate Exercise Instances Indexed by FLD Category')
-plt.xticks(bins)
-plt.show()
-```
-
-Observe here that our histogram is skewed by a few outlieing observations above 60. This means they are averaging over 10 instances of exercise per day, which seems unreasonable. Lets investigate this.
-
-```{python mod_ex_per_week investigate}
-# | echo: false
-
-# table of sus mod_ex_per_week values
-
-filtered_df = nhanes_df[nhanes_df["mod_ex_per_week"] > 60]
-display(filtered_df)
-```
-
-There doesn't seem to be anything noticeable about patient 135456, especially considering there minutes of activity per week, its only 168, meaning they average 2 mins per instance. This leads me ot believe that mod_ex_mins_per_week may be a better measure of a person's moderate exercise. So we proceed to investigate this graph.
-
-```{python mod_ex_mins_per_week_vis}
-# | echo: false
-
-binwidth = 1000
-min_val = nhanes_df["mod_ex_mins_per_week"].min()
-max_val = nhanes_df["mod_ex_mins_per_week"].max()
-bins = np.arange(min_val, max_val + binwidth, binwidth)
-
-mod_ex_mins_per_week_plot = sns.histplot(
-    data = nhanes_df_plot,
-    x = 'mod_ex_mins_per_week',
-    hue = 'FLD Category',
-    multiple = 'dodge',
-    bins = bins
-)
-
-plt.xlabel('Moderate Exercise Minutes')
-plt.title('Histogram of Moderate Exercise Minutes Indexed by FLD Category')
-plt.xticks(bins)
-plt.show()
-```
-
-Again, our data is skewed, this time by different individuals who are averaging over 4000 minutes of exercise a week. This is over nine hours of moderate exercise a day on average. While this figure seems unlikely, it comes out to be equivalent to a full workday in a physical field, like construction, so it may not be out of the ordinary. 
-
-We also see individuals with over 5000 minutes of moderate activity per day. This figure seems highly unreasonable, about 12 hours a day on average, especailly considering that vigorous activity was recorded, hence professional athletes should be out of the picture for this measure. Hence I choose to remove individuals with over 5000 minutes of weekly moderate activity per day, on the guise of misreporting or misentry. We will then reconstruct our histogram, removing values with over 2000 minutes in order to get a better visual of most of the data
-
-```{python removing 5000 mins per week}
-# | echo: false
-
-nhanes_df = nhanes_df[
-    (nhanes_df["mod_ex_mins_per_week"] < 5000) |
-    (nhanes_df["mod_ex_mins_per_week"].isna())
-]
-```
-
-```{python mod_ex_mins_per_week_vis 2}
-# | echo: false
-
-nhanes_df_plot_avg_mins = nhanes_df.rename(columns={'cap_cat': 'FLD Category'})
-
-nhanes_df_plot_avg_mins = nhanes_df_plot_avg_mins[nhanes_df_plot_avg_mins['mod_ex_mins_per_week'] <= 2000]
-
-binwidth = 200
-min_val = nhanes_df_plot_avg_mins["mod_ex_mins_per_week"].min()
-max_val = nhanes_df_plot_avg_mins["mod_ex_mins_per_week"].max()
-bins = np.arange(min_val, max_val + binwidth, binwidth)
-
-mod_ex_mins_per_week_plot = sns.histplot(
-    data = nhanes_df_plot_avg_mins,
-    x = 'mod_ex_mins_per_week',
-    hue = 'FLD Category',
-    multiple = 'dodge',
-    bins = bins
-)
-
-plt.xlabel('Moderate Exercise Minutes')
-plt.title('Histogram of Moderate Exercise Minutes Indexed by FLD Category')
-plt.xticks(bins)
-plt.show()
-
-nhanes_df = nhanes_df.drop(columns = 'mod_ex_per_week')
-```
-
-Now we see that for those with under 2000 minutes of of moderate exercise a week, most individuals exercise for about 200 minutes or less. There seems to be no change in FLD pattern across bins. Exercise also appears to take on an exponential distribution. From this investigation, I also remove mod_ex_per_week from the choice of covariates to stick with mod_ex_mins_per_week. This varaible also is likely to need standardization for assist with future model convergence.
-
 Now we examine diet covariates.
 
 ```{python kcal vis}
@@ -764,7 +675,7 @@ plt.xticks(bins)
 plt.show()
 ```
 
-Most individuals eat under 300 grams of carbs per day, and there seems to be no FLD correlation here. This variable will need standardization.
+Most individuals eat under 300 grams of carbs per day, and there seems to be no obvious FLD correlation here. This variable will need standardization.
 
 ```{python sugar vis}
 # | echo: false
@@ -919,7 +830,7 @@ water_invest = nhanes_df[nhanes_df['water'] > 20000]
 display(water_invest[['bmi', 'water', 'fat', 'chol', 'sugar', 'carb', 'salt']])
 ```
 
-We observe this individual to be drinking about 25000 grams of watera day, about 6.5 gallons. This is a lot, and argueably unhealthy, but on the border of kidney capacity and still humanly possible. The rest of their data seems ot be entered properly, and vigorous activity could explain this had we kept it. Hence, we keep the observation, but re-run the graph without this individual (and a few others with high but reasonable water intakes).
+We observe this individual to be drinking about 25000 grams of water a day, about 6.5 gallons. This is a lot, and argueably unhealthy, but on the border of kidney capacity and still humanly possible. The rest of their data seems ot be entered properly, and vigorous activity could explain this had we kept it. Hence, we keep the observation, but re-run the graph without this individual (and a few others with high but reasonable water intakes).
 
 ```{python water vis 2}
 # | echo: false
@@ -950,7 +861,7 @@ Most individuals consume between 0-2000 grams of water per day. There seems to b
 
 binwidth = 5000
 min_val = 0
-max_val = 25000
+max_val = 20000
 bins = np.arange(min_val, max_val + binwidth, binwidth)
 
 salt_plot = sns.histplot(
@@ -978,7 +889,7 @@ salt_invest = nhanes_df[nhanes_df['salt'] > 15000]
 display(salt_invest[['bmi', 'water', 'fat', 'chol', 'sugar', 'carb', 'salt']])
 ```
 
-We see both of these individuals consuming on the low end of the 15000 to 20000 sodium bin, around 16000. The first individual in the table has concerning nutrient intake across the board, but their high salt intake lines up with other areas of their diet. The second individual in the table also consumes around 16000, without a diet to match. However, this is still do-able, and while their diet may have been caught on an off day for the interview, there is not enough evidence to justify mis reporting or entry, hence we keep both in the data, but remake the graph without them.
+We see this individual consuming on the low end of the 15000 to 20000 sodium bin, around 16000. This individual in the table has concerning nutrient intake across the board, but their high salt intake lines up with other areas of their diet. The second individual in the table also consumes around 16000, without a diet to match. However, this is still do-able, and while their diet may have been caught on an off day for the interview, there is not enough evidence to justify mis reporting or entry, hence we keep both in the data, but remake the graph without them.
 
 ```{python salt vis 2}
 # | echo: false
@@ -1026,7 +937,7 @@ plt.xticks(bins)
 plt.show()
 ```
 
-Again, we see some individuals consuming an unhealthy amount of caffiene, some near 1800 mg. This is well over the 1200mg limit at which vomiting and other sicknesses appear. Lets investigate this individual.
+Again, we see some individuals consuming an unhealthy amount of caffiene, some near 1800 mg. This is well over the 1200mg limit at which vomiting and other sicknesses appear. Lets investigate some high caffeine individuals.
 
 ```{python caff invest}
 # | echo: false
@@ -1037,7 +948,7 @@ caff_invest = nhanes_df[nhanes_df['caff'] > 1200]
 display(caff_invest[['bmi', 'water', 'fat', 'chol', 'sugar', 'carb', 'salt', 'caff']])
 ```
 
-We notice the none of the other diet entrues to be severely abnormal, and no individual to break 1700mg. While consuming over 1200mg is unhealthy, caffeine is addictive and has a progressively softening affect with gradual increase in consumption. That is to say, 1200mg may look to someone used to 600mg like 600mg looks to someone used to 0mg. (Not an exact scale, just an example to demonstrate the addictive effect of caffiene). Hence while abnormally unhealthy, we have no reason to remove these individuals from observation. Hence, we remake our plot with them truncated out of the graph.
+We notice the none of the other diet entrues to be severely abnormal, and no individual to break 1700mg. While consuming over 1200mg is unhealthy, caffeine is addictive and has a progressively softening affect with gradual increase in consumption. That is to say, 1200mg may look to someone used to 600mg like 600mg looks to someone used to 0mg. (Not an exact scale, just an example to demonstrate the addictive effect of caffiene). Hence while abnormal and unhealthy, we have no reason to remove these individuals from observation. Hence, we remake our plot with them truncated out of the graph.
 
 ```{python caff vis 2}
 # | echo: false
@@ -1063,7 +974,7 @@ plt.show()
 
 Most individuals consume about 0-200mg of caffine a day, around 1 to 2 cups of coffee. We notice that after 100 mg, the frequency of FLD jumps, and holds at this proportional jump through the rest of the 100mg bins. This variable will also need standardization.
 
-We notice all of our dietary information looks exponential or like a slightly right shifted exponential, which makes sense in relation to food intake, most people consume values relatively around 0, with extreme values pulling the distribution right tailed. However, we have no reason to consider any of this food intake as outliers, as individual diets can vary wildly across culture, individual, and specific diet. Basically, outliers here are in the realm of human possibility, unlike exercising moderately for 12.5 hours a day every week as noted above. Hence we keep all of our diet data. We note inverse relationships with some covariates and FLD, and no relationship at all for others. For example, calories seems to have a positive effect on FLD, and fiber a negative one, whereas carbs has no effect at all at first glance. These covariates noted as having positive or negative effects match up with clinical significance, and should likely remain in the model until significant statistical evidence knocks them out.
+We notice all of our dietary information looks exponential or like a slightly right shifted exponential, which makes sense in relation to food intake, most people consume values relatively around 0, with extreme values pulling the distribution right tailed. However, we have no reason to consider any of this food intake as outliers, as individual diets can vary wildly across culture, individual, and specific diet. Basically, outliers here are in the realm of human possibility. Hence we keep all of our diet data. We note inverse relationships with some covariates and FLD, and no relationship at all for others. For example, calories seems to have a positive effect on FLD, and fiber a negative one, whereas carbs has no effect at all at first glance. These covariates noted as having positive or negative effects match up with clinical significance, and should likely remain in the model until significant statistical evidence knocks them out.
 
 ## Data Transformations
 
@@ -1074,24 +985,24 @@ The variables in the following table were standardized to assist with model conv
 
 # standardizing necessary variables
 
-to_standardize_list = ['mins_seden_daily', 'mod_ex_mins_per_week', 'kcal', 'carb', 'sugar', 'fat', 'chol', 'water', 'salt', 'caff']
+to_standardize_list = ['mins_seden_daily', 'kcal', 'carb', 'sugar', 'fat', 'chol', 'water', 'salt', 'caff']
 
-standardize_list = ['mins_seden_daily_stan', 'mod_ex_mins_per_week_stan', 'kcal_stan', 'carb_stan','sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'salt_stan', 'caff_stan']
+standardize_list = ['mins_seden_daily_stan', 'kcal_stan', 'carb_stan','sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'salt_stan', 'caff_stan']
 
 for i in range(len(standardize_list)):
     nhanes_df[standardize_list[i]] = (nhanes_df[to_standardize_list[i]] - np.mean(nhanes_df[to_standardize_list[i]])) / np.std(nhanes_df[to_standardize_list[i]])
 
-display(nhanes_df[to_standardize_list].agg(["mean", "std"]))
+display(nhanes_df[to_standardize_list].agg(["mean", "std"]).T)
 ```
 
-We will also create dummy variables of each catgorical covariate edu_lvl, diab, and ins and alc_times_yr_recat.
+We will also create dummy variables of each catgorical covariate edu_lvl, diab, ins, race, and alc_times_yr_recat. In my dummification of alc_times_yr_recat, I will also seperate those who have never drank to those who have drank before but not in the last 12 months. This is important to seperate those who have never drank from say recovered alcoholics.
 
 ```{python creating dummies}
 # | echo: false
 
 # creating and renaming dummy variables and ensuring na's stay around rather than get replaced by 0s
 
-cols = ['edu_lvl', 'diab', 'ins', 'alc_times_yr_recat']
+cols = ['edu_lvl', 'diab', 'ins', 'alc_times_yr_recat', 'race']
 na_masks = {col: nhanes_df[col].isna() for col in cols}
 
 nhanes_df = pd.get_dummies(
@@ -1101,15 +1012,13 @@ nhanes_df = pd.get_dummies(
         'edu_lvl': 'edu_lvl',
         'diab': 'diab',
         'ins': 'ins',
-        'alc_times_yr_recat': 'alc_times_yr_recat'
+        'alc_times_yr_recat': 'alc_times_yr_recat',
+        'race': 'race'
     },
-    drop_first = True,
     dtype = float
 )
 
-for col in cols:
-    dummy_cols = [c for c in nhanes_df.columns if c.startswith(col + "_")]
-    nhanes_df.loc[na_masks[col], dummy_cols] = np.nan
+nhanes_df = nhanes_df.drop(columns = ['alc_times_yr_recat_0.0', 'race_3.0', 'edu_lvl_1.0', 'diab_0.0'])
 
 nhanes_df = nhanes_df.rename(columns = {
     'edu_lvl_2.0': 'hs_dropout',
@@ -1122,26 +1031,37 @@ nhanes_df = nhanes_df.rename(columns = {
     'ins_2.0': 'private_ins',
     'alc_times_yr_recat_1.0': 'rare_drink',
     'alc_times_yr_recat_2.0': 'some_drink',
-    'alc_times_yr_recat_3.0': 'often_drink'
+    'alc_times_yr_recat_3.0': 'often_drink',
+    'race_1.0': 'mexican',
+    'race_2.0': 'hispanic',
+    'race_4.0': 'black',
+    'race_6.0': 'asian',
+    'race_7.0': 'other'
 }
 )
+
+# recoding alcohol so that people who have never drank are different than those who have but just havent in the last 12 months
+
+nhanes_df['drk_but_no12'] = ((nhanes_df["alc_ever"] == 1) & (nhanes_df["alc_times_yr"] == 0)).astype(int)
+
+nhanes_df = nhanes_df.drop(columns = 'alc_ever')
 ```
 
 We now have our final dataframe, which we will parse to create our design matrix in the model building stage. It contains id, median cap score and the median cap score categories, all the variables analyzed, their standardization, and dummifications if necessary. This contains all the information needed for any type of model using these variables (standardized or not, dummy relation or linear relation), and the information needed to interpret findings (interpretting standardized covariates).
 
 ## Covariate Relationships
 
-We will now examine a correlation heatmap for a possible design matrix, basically all the covariates with no_health_ins_12_mon removed due to its obviously high correlation with health insurance measures, and with alc_ever removed, because of its obviously high correlation with alcohol in the past 12 months measures. Furthermore, because we have over 12 variables, we are only going to keep the ones which have high correlation with each other, over 0.7 positive or negative.
+We will now examine a correlation heatmap for a possible design matrix, basically all the covariates. Furthermore, because we have over 12 variables, we are only going to keep the ones which have high correlation with each other, over 0.7 positive or negative.
 
 ```{python cov heatmap}
 # | echo: false
 
-# creating candidate deisgn matrix and making correlation heatmap for those with correlation over |0.6|
+# creating candidate deisgn matrix and making correlation heatmap for those with correlation over |0.7|
 
 cand_list = ['cig_smoker_ever',
-       'sleep_weekday', 'bmi', 'sex', 'age', 'race',
+       'sleep_weekday', 'bmi', 'sex', 'age', 'mexican', 'hispanic', 'black', 'asian', 'other',
        'born_us', 'fam_inc_to_pov', 'hep_b',  'mins_seden_daily_stan',
-       'mod_ex_mins_per_week_stan', 'kcal_stan', 'carb_stan', 'sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'salt_stan', 'caff_stan', 'hs_dropout', 'hs_grad', 'aa', 'bach', 'prediabetes', 'diabetes', 'public_ins', 'private_ins', 'rare_drink', 'some_drink', 'often_drink']
+       'kcal_stan', 'carb_stan', 'sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'salt_stan', 'caff_stan', 'hs_dropout', 'hs_grad', 'aa', 'bach', 'prediabetes', 'diabetes', 'public_ins', 'private_ins', 'drk_but_no12', 'rare_drink', 'some_drink', 'often_drink']
 
 design_cand = nhanes_df[cand_list]
 corr_design_cand = design_cand.corr().abs()
@@ -1163,16 +1083,22 @@ plt.title(f'Correlations |r| ≥ {threshold}')
 plt.show()
 ```
 
-We observe high correlation in insurance, which is expected. One insurance presumes another. We also observe high correlation in som eof our diet variables, particularly carbs, sugar, fat and salt. This also makes sense, as someone who eats a lot is likely to consume a lot of each macronutrient. This is expected in deit survey data however, and our analysis explanation will consider this. Our goal is to try to discern which macronutrients have an effect on FLD.
+We observe pefect correlation in insurance, and in some of our diet variables, particularly carbs, sugar, fat and salt. This also makes sense, as someone who eats a lot is likely to consume a lot of each macronutrient. This is expected in diet survey data however, and our analysis explanation will consider this. Our goal is to try to discern which macronutrients have an effect on FLD.
+
+As for insurance, it seems in our removal of NA values we dropped all the individuals without insurance, Hence, we will make private insurance a binary variable over public insurance by dropping the public insurance variable.
+
+```{python dropping public_ins}
+# | echo: false
+
+nhanes_df = nhanes_df.drop(columns = 'public_ins')
+```
 
 ```{python VIF}
 # | echo: false
 
 # VIF table
 
-design_cand = sm.add_constant(design_cand)
-
-design_cand = design_cand.dropna() # we must drop NAs for VIF
+design_cand = sm.add_constant(design_cand).drop(columns = 'public_ins')
 
 vif_df = pd.DataFrame({
     "Covariate": design_cand.columns,
@@ -1183,7 +1109,7 @@ vif_df = pd.DataFrame({
 display(vif_df)
 ```
 
-We observe high VIF on our dummy variables for education level, which is expected. We also observe high VIF from some of our diet variables, like kcal. This confirms that some diet variables have high multicollinearity, and it may be better to keep only some of them rather than all. KCal for example is likely too high and shouldn't be considered. Hence, in model building, I will need to be careful about which diet covariates to select.
+We observe high VIF on our dummy variables for education level. We also observe high VIF from some of our diet variables, like kcal. This confirms that some diet variables have high multicollinearity, and it may be better to keep only some of them rather than all. KCal for example is likely too high and shouldn't be considered, and is a mask for other high macronutrient covariates and bmi. Hence, in model building, I will need to be careful about which diet covariates to select.
 
 Lastly, I would like to examine a possible interaction term between sodium and water. Sodium and water obviously have an interactive effect on each other in diet. If high sodium intake can be dampened by high water intake, and hence one's effect on CAP score, if there is one, would be effected by the other.
 
@@ -1202,6 +1128,7 @@ sns.lmplot(
 )
 
 plt.title("Sodium vs CAP by Water (Standardized) Quartile")
+plt.ylabel('Median CAP Score')
 plt.xlabel('Sodium Standardized')
 plt.show()
 ```
@@ -1269,11 +1196,16 @@ nhanes_df = nhanes_df.drop(columns = ['health_ins', 'priv_health_ins'])
 nhanes_df['mod_ex_mins_per_week'] = nhanes_df['mod_ex_per_week'] * nhanes_df['avg_mins_mod_ex']
 nhanes_df['vig_ex_mins_per_week'] = nhanes_df['vig_ex_per_week'] * nhanes_df['avg_mins_vig_ex']
 
-# recoding alcohol to be in terms of days of the year, more readable
+# recoding alcohol to be in terms of days of the year, more readable, and also imputing 0s where alc_ever is 0 and alc_times_yr is na
 
 nhanes_df['alc_times_yr'] = nhanes_df['alc_times_yr'].replace({1: 365, 2: 260, 3: 182.5, 4: 104, 5: 52, 6: 12, 7: 30, 8: 9, 9: 4.5, 10: 1.5})
 
 nhanes_df['alc_binge_times_yr'] = nhanes_df['alc_binge_times_yr'].replace({1: 365, 2: 260, 3: 182.5, 4: 104, 5: 52, 6:12, 8: 9, 9: 4.5, 10: 1.5})
+
+nhanes_df.loc[
+    (nhanes_df["alc_times_yr"].isna()) & (nhanes_df["alc_ever"] == 0),
+    "alc_times_yr"
+] = 0
 ```
 
 ### Examining Missing values
@@ -1394,6 +1326,13 @@ nhanes_df = nhanes_df.drop(columns = 'preg')
 nhanes_df = nhanes_df.dropna(subset = ['kcal'])
 
 nhanes_df.isna().sum()
+```
+
+```{python Appendix dropping mod_ex_mins_per_week}
+# | eval: false
+
+nhanes_df = nhanes_df.drop(columns = ['mod_ex_mins_per_week', 'mod_ex_per_week'])
+nhanes_df = nhanes_df.dropna()
 ```
 
 ### Data Visualization (Discrete Covariates)
@@ -1758,105 +1697,6 @@ plt.xticks(bins)
 plt.show()
 ```
 
-```{python Appendix mod_ex_per_week_vis}
-# | eval: false
-
-binwidth = 20
-min_val = nhanes_df["mod_ex_per_week"].min()
-max_val = nhanes_df["mod_ex_per_week"].max()
-bins = np.arange(min_val, max_val + binwidth, binwidth)
-
-mod_ex_per_week_plot = sns.histplot(
-    data = nhanes_df_plot,
-    x = 'mod_ex_per_week',
-    hue = 'FLD Category',
-    multiple = 'dodge',
-    bins = bins
-)
-
-plt.xlabel('Moderate Exercise Instances (Week)')
-plt.title('Histogram of Moderate Exercise Instances Indexed by FLD Category')
-plt.xticks(bins)
-plt.show()
-```
-
-```{python Appendix mod_ex_per_week investigate}
-# | eval: false
-
-# table of sus mod_ex_per_week values
-
-filtered_df = nhanes_df[nhanes_df["mod_ex_per_week"] > 60]
-display(filtered_df)
-```
-
-```{python Appendix mod_ex_mins_per_week_vis}
-# | eval: false
-
-binwidth = 1000
-min_val = nhanes_df["mod_ex_mins_per_week"].min()
-max_val = nhanes_df["mod_ex_mins_per_week"].max()
-bins = np.arange(min_val, max_val + binwidth, binwidth)
-
-mod_ex_mins_per_week_plot = sns.histplot(
-    data = nhanes_df_plot,
-    x = 'mod_ex_mins_per_week',
-    hue = 'FLD Category',
-    multiple = 'dodge',
-    bins = bins
-)
-
-plt.xlabel('Moderate Exercise Minutes')
-plt.title('Histogram of Moderate Exercise Minutes Indexed by FLD Category')
-plt.xticks(bins)
-plt.show()
-```
-
-```{python Appendix removing 5000 mins per week}
-# | eval: false
-
-nhanes_df = nhanes_df[
-    (nhanes_df["mod_ex_mins_per_week"] < 5000) |
-    (nhanes_df["mod_ex_mins_per_week"].isna())
-]
-```
-
-```{python Appendix removing 5000 mins per week}
-# | eval: false
-
-nhanes_df = nhanes_df[
-    (nhanes_df["mod_ex_mins_per_week"] < 5000) |
-    (nhanes_df["mod_ex_mins_per_week"].isna())
-]
-```
-
-```{python Appendix mod_ex_mins_per_week_vis 2}
-# | eval: false
-
-nhanes_df_plot_avg_mins = nhanes_df.rename(columns={'cap_cat': 'FLD Category'})
-
-nhanes_df_plot_avg_mins = nhanes_df_plot_avg_mins[nhanes_df_plot_avg_mins['mod_ex_mins_per_week'] <= 2000]
-
-binwidth = 200
-min_val = nhanes_df_plot_avg_mins["mod_ex_mins_per_week"].min()
-max_val = nhanes_df_plot_avg_mins["mod_ex_mins_per_week"].max()
-bins = np.arange(min_val, max_val + binwidth, binwidth)
-
-mod_ex_mins_per_week_plot = sns.histplot(
-    data = nhanes_df_plot_avg_mins,
-    x = 'mod_ex_mins_per_week',
-    hue = 'FLD Category',
-    multiple = 'dodge',
-    bins = bins
-)
-
-plt.xlabel('Moderate Exercise Minutes')
-plt.title('Histogram of Moderate Exercise Minutes Indexed by FLD Category')
-plt.xticks(bins)
-plt.show()
-
-nhanes_df = nhanes_df.drop(columns = 'mod_ex_per_week')
-```
-
 ```{python Appendix kcal vis}
 # | eval: false
 
@@ -2177,14 +2017,14 @@ plt.show()
 
 # standardizing necessary variables
 
-to_standardize_list = ['mins_seden_daily', 'mod_ex_mins_per_week', 'kcal', 'carb', 'sugar', 'fat', 'chol', 'water', 'salt', 'caff']
+to_standardize_list = ['mins_seden_daily', 'kcal', 'carb', 'sugar', 'fat', 'chol', 'water', 'salt', 'caff']
 
-standardize_list = ['mins_seden_daily_stan', 'mod_ex_mins_per_week_stan', 'kcal_stan', 'carb_stan','sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'salt_stan', 'caff_stan']
+standardize_list = ['mins_seden_daily_stan', 'kcal_stan', 'carb_stan','sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'salt_stan', 'caff_stan']
 
 for i in range(len(standardize_list)):
     nhanes_df[standardize_list[i]] = (nhanes_df[to_standardize_list[i]] - np.mean(nhanes_df[to_standardize_list[i]])) / np.std(nhanes_df[to_standardize_list[i]])
 
-display(nhanes_df[to_standardize_list].agg(["mean", "std"]))
+display(nhanes_df[to_standardize_list].agg(["mean", "std"]).T)
 ```
 
 ```{python Appendix creating dummies}
@@ -2192,7 +2032,7 @@ display(nhanes_df[to_standardize_list].agg(["mean", "std"]))
 
 # creating and renaming dummy variables and ensuring na's stay around rather than get replaced by 0s
 
-cols = ['edu_lvl', 'diab', 'ins', 'alc_times_yr_recat']
+cols = ['edu_lvl', 'diab', 'ins', 'alc_times_yr_recat', 'race']
 na_masks = {col: nhanes_df[col].isna() for col in cols}
 
 nhanes_df = pd.get_dummies(
@@ -2202,15 +2042,13 @@ nhanes_df = pd.get_dummies(
         'edu_lvl': 'edu_lvl',
         'diab': 'diab',
         'ins': 'ins',
-        'alc_times_yr_recat': 'alc_times_yr_recat'
+        'alc_times_yr_recat': 'alc_times_yr_recat',
+        'race': 'race'
     },
-    drop_first = True,
     dtype = float
 )
 
-for col in cols:
-    dummy_cols = [c for c in nhanes_df.columns if c.startswith(col + "_")]
-    nhanes_df.loc[na_masks[col], dummy_cols] = np.nan
+nhanes_df = nhanes_df.drop(columns = ['alc_times_yr_recat_0.0', 'race_3.0', 'edu_lvl_1.0', 'diab_0.0'])
 
 nhanes_df = nhanes_df.rename(columns = {
     'edu_lvl_2.0': 'hs_dropout',
@@ -2223,9 +2061,20 @@ nhanes_df = nhanes_df.rename(columns = {
     'ins_2.0': 'private_ins',
     'alc_times_yr_recat_1.0': 'rare_drink',
     'alc_times_yr_recat_2.0': 'some_drink',
-    'alc_times_yr_recat_3.0': 'often_drink'
+    'alc_times_yr_recat_3.0': 'often_drink',
+    'race_1.0': 'mexican',
+    'race_2.0': 'hispanic',
+    'race_4.0': 'black',
+    'race_6.0': 'asian',
+    'race_7.0': 'other'
 }
 )
+
+# recoding alcohol so that people who have never drank are different than those who have but just havent in the last 12 months
+
+nhanes_df['drk_but_no12'] = ((nhanes_df["alc_ever"] == 1) & (nhanes_df["alc_times_yr"] == 0)).astype(int)
+
+nhanes_df = nhanes_df.drop(columns = 'alc_ever')
 ```
 
 ### Covariate Relationships
@@ -2233,12 +2082,12 @@ nhanes_df = nhanes_df.rename(columns = {
 ```{python Appendix cov heatmap}
 # | eval: false
 
-# creating candidate deisgn matrix and making correlation heatmap for those with correlation over |0.6|
+# creating candidate deisgn matrix and making correlation heatmap for those with correlation over |0.7|
 
 cand_list = ['cig_smoker_ever',
-       'sleep_weekday', 'bmi', 'sex', 'age', 'race',
+       'sleep_weekday', 'bmi', 'sex', 'age', 'mexican', 'hispanic', 'black', 'asian', 'other',
        'born_us', 'fam_inc_to_pov', 'hep_b',  'mins_seden_daily_stan',
-       'mod_ex_mins_per_week_stan', 'kcal_stan', 'carb_stan', 'sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'salt_stan', 'caff_stan', 'hs_dropout', 'hs_grad', 'aa', 'bach', 'prediabetes', 'diabetes', 'public_ins', 'private_ins', 'rare_drink', 'some_drink', 'often_drink']
+       'kcal_stan', 'carb_stan', 'sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'salt_stan', 'caff_stan', 'hs_dropout', 'hs_grad', 'aa', 'bach', 'prediabetes', 'diabetes', 'public_ins', 'private_ins', 'drk_but_no12', 'rare_drink', 'some_drink', 'often_drink']
 
 design_cand = nhanes_df[cand_list]
 corr_design_cand = design_cand.corr().abs()
@@ -2258,6 +2107,12 @@ sns.heatmap(
 
 plt.title(f'Correlations |r| ≥ {threshold}')
 plt.show()
+```
+
+```{python Appendix dropping public_ins}
+# | eval: false
+
+nhanes_df = nhanes_df.drop(columns = 'public_ins')
 ```
 
 ```{python Appendix VIF}

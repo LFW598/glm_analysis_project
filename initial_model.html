@@ -1,0 +1,2018 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.8.27">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Lucas Webster">
+
+<title>BST 223 Data Analysis Project: Initial Model &amp; Results</title>
+<style>
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.5.1/dist/jquery.min.js" integrity="sha384-ZvpUoO/+PpLXR1lu4jmpXWu80pZlYUAfxl5NsBMWOEPSjUn/6Z/hRTt8+pR6L4N2" crossorigin="anonymous"></script><script src="initial_model_files/libs/clipboard/clipboard.min.js"></script>
+<script src="initial_model_files/libs/quarto-html/quarto.js" type="module"></script>
+<script src="initial_model_files/libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="initial_model_files/libs/quarto-html/axe/axe-check.js" type="module"></script>
+<script src="initial_model_files/libs/quarto-html/popper.min.js"></script>
+<script src="initial_model_files/libs/quarto-html/tippy.umd.min.js"></script>
+<script src="initial_model_files/libs/quarto-html/anchor.min.js"></script>
+<link href="initial_model_files/libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="initial_model_files/libs/quarto-html/quarto-syntax-highlighting-ed96de9b727972fe78a7b5d16c58bf87.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="initial_model_files/libs/bootstrap/bootstrap.min.js"></script>
+<link href="initial_model_files/libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="initial_model_files/libs/bootstrap/bootstrap-d6a003b94517c951b2d65075d42fb01b.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script src="https://cdn.jsdelivr.net/npm/requirejs@2.3.6/require.min.js" integrity="sha384-c9c+LnTbwQ3aujuU7ULEPVvgLs+Fn6fJUvIGTsuu1ZcCf11fiEubah0ttpca4ntM sha384-6V1/AdqZRWk1KAlWbKBlGhN7VG4iE/yAZcO6NZPMF8od0vukrvr0tg4qY6NSrItx" crossorigin="anonymous"></script>
+
+<script type="application/javascript">define('jquery', [],function() {return window.jQuery;})</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+</head>
+
+<body class="fullcontent quarto-light">
+
+<div id="quarto-content" class="page-columns page-rows-contents page-layout-article">
+
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">BST 223 Data Analysis Project: Initial Model &amp; Results</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    <div>
+    <div class="quarto-title-meta-heading">Author</div>
+    <div class="quarto-title-meta-contents">
+             <p>Lucas Webster </p>
+          </div>
+  </div>
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<section id="overview" class="level1">
+<h1>Overview</h1>
+<p>In this ‘Initial Model and Results’ portion of the project, I plan to first run a proportional-odds cumulative-logit model on every variable, and then remove those with obvious p-value, clinical, and covariance issues that were discussed in the EDA stage. Then we will rerun our model and test the proportionality assumption, to see if we can proceed with model selection and testing under this assumption. From there, I will narrow down several candidate nested models of which I will perform LR tests and use BIC/AIC to compare them. Using BIC, AIC, and these LR tests, I will narrow down to 2 models, of which I will provide coefficient interpretaion for what I believe to be the ‘leader’ among them, and discuss problems I ran into along the way.</p>
+<section id="initial-proportional-model" class="level2">
+<h2 class="anchored" data-anchor-id="initial-proportional-model">Initial Proportional Model</h2>
+<div id="f2acc3e2" class="cell" data-execution_count="2">
+<div class="cell-output cell-output-display">
+<pre><code>Index(['cap_cat', 'cig_smoker_ever', 'sleep_weekday', 'no_ins_12_mon', 'bmi',
+       'sex', 'age', 'born_us', 'fam_inc_to_pov', 'hep_b',
+       'mins_seden_daily_stan', 'kcal_stan', 'carb_stan', 'sugar_stan',
+       'fat_stan', 'chol_stan', 'water_stan', 'salt_stan', 'caff_stan',
+       'hs_dropout', 'hs_grad', 'aa', 'bach', 'prediabetes', 'diabetes',
+       'private_ins', 'rare_drink', 'some_drink', 'often_drink',
+       'drk_but_no12', 'fiber', 'vit_e', 'mexican', 'hispanic', 'black',
+       'asian', 'other'],
+      dtype='object')</code></pre>
+</div>
+</div>
+<p>The above are our initial columns for our intial model. I will be on the watch for kcal_stan, it had a VIF of 37 from our EDA, likley due to its high covariance with the macronutrient measures. The same goes for carb_stan, as it had a VIF above 15.</p>
+<div id="885ab2bb" class="cell" data-execution_count="3">
+<div class="cell-output cell-output-display">
+<table class="simpletable caption-top table table-sm table-striped small">
+<tbody>
+<tr class="odd">
+<td></td>
+<th data-quarto-table-cell-role="th">coef</th>
+<th data-quarto-table-cell-role="th">std err</th>
+<th data-quarto-table-cell-role="th">z</th>
+<th data-quarto-table-cell-role="th">P&gt;|z|</th>
+<th data-quarto-table-cell-role="th">[0.025</th>
+<th data-quarto-table-cell-role="th">0.975]</th>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">cig_smoker_ever</th>
+<td>0.0281</td>
+<td>0.082</td>
+<td>0.345</td>
+<td>0.730</td>
+<td>-0.132</td>
+<td>0.188</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">sleep_weekday</th>
+<td>-0.0521</td>
+<td>0.026</td>
+<td>-2.039</td>
+<td>0.041</td>
+<td>-0.102</td>
+<td>-0.002</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">no_ins_12_mon</th>
+<td>-0.1011</td>
+<td>0.188</td>
+<td>-0.537</td>
+<td>0.591</td>
+<td>-0.470</td>
+<td>0.268</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">bmi</th>
+<td>0.1998</td>
+<td>0.008</td>
+<td>26.417</td>
+<td>0.000</td>
+<td>0.185</td>
+<td>0.215</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">sex</th>
+<td>0.2580</td>
+<td>0.082</td>
+<td>3.157</td>
+<td>0.002</td>
+<td>0.098</td>
+<td>0.418</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">age</th>
+<td>0.0166</td>
+<td>0.003</td>
+<td>6.157</td>
+<td>0.000</td>
+<td>0.011</td>
+<td>0.022</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">born_us</th>
+<td>-0.0005</td>
+<td>0.131</td>
+<td>-0.004</td>
+<td>0.997</td>
+<td>-0.256</td>
+<td>0.255</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">fam_inc_to_pov</th>
+<td>-0.0099</td>
+<td>0.030</td>
+<td>-0.331</td>
+<td>0.741</td>
+<td>-0.068</td>
+<td>0.049</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">hep_b</th>
+<td>0.4386</td>
+<td>0.292</td>
+<td>1.500</td>
+<td>0.134</td>
+<td>-0.135</td>
+<td>1.012</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">mins_seden_daily_stan</th>
+<td>-0.0898</td>
+<td>0.040</td>
+<td>-2.256</td>
+<td>0.024</td>
+<td>-0.168</td>
+<td>-0.012</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">kcal_stan</th>
+<td>0.4812</td>
+<td>0.228</td>
+<td>2.108</td>
+<td>0.035</td>
+<td>0.034</td>
+<td>0.929</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">carb_stan</th>
+<td>0.1153</td>
+<td>0.164</td>
+<td>0.703</td>
+<td>0.482</td>
+<td>-0.206</td>
+<td>0.437</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">sugar_stan</th>
+<td>-0.1564</td>
+<td>0.085</td>
+<td>-1.837</td>
+<td>0.066</td>
+<td>-0.323</td>
+<td>0.010</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">fat_stan</th>
+<td>-0.1318</td>
+<td>0.128</td>
+<td>-1.029</td>
+<td>0.304</td>
+<td>-0.383</td>
+<td>0.119</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">chol_stan</th>
+<td>-0.0921</td>
+<td>0.049</td>
+<td>-1.891</td>
+<td>0.059</td>
+<td>-0.188</td>
+<td>0.003</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">water_stan</th>
+<td>-0.0460</td>
+<td>0.039</td>
+<td>-1.188</td>
+<td>0.235</td>
+<td>-0.122</td>
+<td>0.030</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">salt_stan</th>
+<td>0.0796</td>
+<td>0.066</td>
+<td>1.204</td>
+<td>0.229</td>
+<td>-0.050</td>
+<td>0.209</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">caff_stan</th>
+<td>-0.1123</td>
+<td>0.039</td>
+<td>-2.844</td>
+<td>0.004</td>
+<td>-0.190</td>
+<td>-0.035</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">hs_dropout</th>
+<td>0.0535</td>
+<td>0.294</td>
+<td>0.182</td>
+<td>0.856</td>
+<td>-0.524</td>
+<td>0.631</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">hs_grad</th>
+<td>0.0091</td>
+<td>0.269</td>
+<td>0.034</td>
+<td>0.973</td>
+<td>-0.518</td>
+<td>0.536</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">aa</th>
+<td>-0.1228</td>
+<td>0.266</td>
+<td>-0.462</td>
+<td>0.644</td>
+<td>-0.644</td>
+<td>0.398</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">bach</th>
+<td>-0.1304</td>
+<td>0.273</td>
+<td>-0.478</td>
+<td>0.633</td>
+<td>-0.665</td>
+<td>0.404</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">prediabetes</th>
+<td>0.1735</td>
+<td>0.101</td>
+<td>1.710</td>
+<td>0.087</td>
+<td>-0.025</td>
+<td>0.372</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">diabetes</th>
+<td>0.0685</td>
+<td>0.122</td>
+<td>0.559</td>
+<td>0.576</td>
+<td>-0.171</td>
+<td>0.308</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">private_ins</th>
+<td>-0.1373</td>
+<td>0.085</td>
+<td>-1.622</td>
+<td>0.105</td>
+<td>-0.303</td>
+<td>0.029</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">rare_drink</th>
+<td>-0.0375</td>
+<td>0.158</td>
+<td>-0.238</td>
+<td>0.812</td>
+<td>-0.347</td>
+<td>0.272</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">some_drink</th>
+<td>0.0970</td>
+<td>0.164</td>
+<td>0.591</td>
+<td>0.555</td>
+<td>-0.225</td>
+<td>0.419</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">often_drink</th>
+<td>0.1127</td>
+<td>0.180</td>
+<td>0.624</td>
+<td>0.532</td>
+<td>-0.241</td>
+<td>0.466</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">drk_but_no12</th>
+<td>0.0364</td>
+<td>0.170</td>
+<td>0.214</td>
+<td>0.831</td>
+<td>-0.298</td>
+<td>0.370</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">fiber</th>
+<td>-0.0254</td>
+<td>0.007</td>
+<td>-3.735</td>
+<td>0.000</td>
+<td>-0.039</td>
+<td>-0.012</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">vit_e</th>
+<td>-0.0298</td>
+<td>0.009</td>
+<td>-3.194</td>
+<td>0.001</td>
+<td>-0.048</td>
+<td>-0.011</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">mexican</th>
+<td>-0.2403</td>
+<td>0.194</td>
+<td>-1.240</td>
+<td>0.215</td>
+<td>-0.620</td>
+<td>0.140</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">hispanic</th>
+<td>-0.1058</td>
+<td>0.161</td>
+<td>-0.656</td>
+<td>0.512</td>
+<td>-0.422</td>
+<td>0.211</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">black</th>
+<td>-0.6134</td>
+<td>0.135</td>
+<td>-4.553</td>
+<td>0.000</td>
+<td>-0.877</td>
+<td>-0.349</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">asian</th>
+<td>0.3052</td>
+<td>0.207</td>
+<td>1.475</td>
+<td>0.140</td>
+<td>-0.100</td>
+<td>0.711</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">other</th>
+<td>-0.2435</td>
+<td>0.159</td>
+<td>-1.530</td>
+<td>0.126</td>
+<td>-0.555</td>
+<td>0.068</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">0/1</th>
+<td>4.8906</td>
+<td>0.467</td>
+<td>10.464</td>
+<td>0.000</td>
+<td>3.975</td>
+<td>5.807</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">1/2</th>
+<td>-0.3245</td>
+<td>0.048</td>
+<td>-6.770</td>
+<td>0.000</td>
+<td>-0.418</td>
+<td>-0.231</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">2/3</th>
+<td>-0.0764</td>
+<td>0.043</td>
+<td>-1.792</td>
+<td>0.073</td>
+<td>-0.160</td>
+<td>0.007</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>We will make a few decisions for variable selection here. First, we will drop carb_stan, it had an incredibly high VIF (17!) value in the EDA stage and has an insignifcant p-value here. Carbs also showed little correlation in its visual diagnostic. We will also remove education level covariates, they also had incredibly high VIF in the EDA stage and p-values now, and while they showed some correlation in their visual diagnostic, commen sense tells me they are a likely a mask and collinear with fam_inc_to_pov, ie education level is a mask for economic status. Hence we remove them, which will also greatly increase the power of our model.</p>
+<div id="e65aca16" class="cell" data-execution_count="4">
+<div class="cell-output cell-output-display">
+<table class="simpletable caption-top table table-sm table-striped small">
+<tbody>
+<tr class="odd">
+<td></td>
+<th data-quarto-table-cell-role="th">coef</th>
+<th data-quarto-table-cell-role="th">std err</th>
+<th data-quarto-table-cell-role="th">z</th>
+<th data-quarto-table-cell-role="th">P&gt;|z|</th>
+<th data-quarto-table-cell-role="th">[0.025</th>
+<th data-quarto-table-cell-role="th">0.975]</th>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">cig_smoker_ever</th>
+<td>-0.0028</td>
+<td>0.080</td>
+<td>-0.035</td>
+<td>0.972</td>
+<td>-0.160</td>
+<td>0.154</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">sleep_weekday</th>
+<td>0.0101</td>
+<td>0.025</td>
+<td>0.398</td>
+<td>0.691</td>
+<td>-0.040</td>
+<td>0.060</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">no_ins_12_mon</th>
+<td>-0.3833</td>
+<td>0.191</td>
+<td>-2.009</td>
+<td>0.045</td>
+<td>-0.757</td>
+<td>-0.009</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">bmi</th>
+<td>0.2042</td>
+<td>0.008</td>
+<td>26.715</td>
+<td>0.000</td>
+<td>0.189</td>
+<td>0.219</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">sex</th>
+<td>0.3523</td>
+<td>0.082</td>
+<td>4.319</td>
+<td>0.000</td>
+<td>0.192</td>
+<td>0.512</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">age</th>
+<td>0.0160</td>
+<td>0.003</td>
+<td>5.949</td>
+<td>0.000</td>
+<td>0.011</td>
+<td>0.021</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">born_us</th>
+<td>-0.0473</td>
+<td>0.129</td>
+<td>-0.368</td>
+<td>0.713</td>
+<td>-0.300</td>
+<td>0.205</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">fam_inc_to_pov</th>
+<td>-0.0170</td>
+<td>0.028</td>
+<td>-0.604</td>
+<td>0.546</td>
+<td>-0.072</td>
+<td>0.038</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">hep_b</th>
+<td>-0.7660</td>
+<td>0.308</td>
+<td>-2.486</td>
+<td>0.013</td>
+<td>-1.370</td>
+<td>-0.162</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">mins_seden_daily_stan</th>
+<td>0.0314</td>
+<td>0.039</td>
+<td>0.797</td>
+<td>0.426</td>
+<td>-0.046</td>
+<td>0.109</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">kcal_stan</th>
+<td>-0.2225</td>
+<td>0.157</td>
+<td>-1.421</td>
+<td>0.155</td>
+<td>-0.529</td>
+<td>0.084</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">sugar_stan</th>
+<td>0.0958</td>
+<td>0.067</td>
+<td>1.427</td>
+<td>0.154</td>
+<td>-0.036</td>
+<td>0.227</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">fat_stan</th>
+<td>0.3530</td>
+<td>0.106</td>
+<td>3.326</td>
+<td>0.001</td>
+<td>0.145</td>
+<td>0.561</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">chol_stan</th>
+<td>-0.0628</td>
+<td>0.047</td>
+<td>-1.333</td>
+<td>0.183</td>
+<td>-0.155</td>
+<td>0.030</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">water_stan</th>
+<td>0.0682</td>
+<td>0.037</td>
+<td>1.866</td>
+<td>0.062</td>
+<td>-0.003</td>
+<td>0.140</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">salt_stan</th>
+<td>0.0399</td>
+<td>0.066</td>
+<td>0.606</td>
+<td>0.544</td>
+<td>-0.089</td>
+<td>0.169</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">caff_stan</th>
+<td>0.0192</td>
+<td>0.039</td>
+<td>0.488</td>
+<td>0.626</td>
+<td>-0.058</td>
+<td>0.096</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">prediabetes</th>
+<td>0.1017</td>
+<td>0.102</td>
+<td>0.997</td>
+<td>0.319</td>
+<td>-0.098</td>
+<td>0.302</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">diabetes</th>
+<td>0.0826</td>
+<td>0.122</td>
+<td>0.679</td>
+<td>0.497</td>
+<td>-0.156</td>
+<td>0.321</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">private_ins</th>
+<td>-0.0441</td>
+<td>0.085</td>
+<td>-0.520</td>
+<td>0.603</td>
+<td>-0.210</td>
+<td>0.122</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">rare_drink</th>
+<td>-0.0288</td>
+<td>0.157</td>
+<td>-0.184</td>
+<td>0.854</td>
+<td>-0.336</td>
+<td>0.278</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">some_drink</th>
+<td>-0.1104</td>
+<td>0.163</td>
+<td>-0.678</td>
+<td>0.498</td>
+<td>-0.430</td>
+<td>0.209</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">often_drink</th>
+<td>0.1395</td>
+<td>0.174</td>
+<td>0.799</td>
+<td>0.424</td>
+<td>-0.203</td>
+<td>0.481</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">drk_but_no12</th>
+<td>0.2322</td>
+<td>0.170</td>
+<td>1.366</td>
+<td>0.172</td>
+<td>-0.101</td>
+<td>0.565</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">fiber</th>
+<td>-0.0097</td>
+<td>0.006</td>
+<td>-1.537</td>
+<td>0.124</td>
+<td>-0.022</td>
+<td>0.003</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">vit_e</th>
+<td>-0.0225</td>
+<td>0.009</td>
+<td>-2.433</td>
+<td>0.015</td>
+<td>-0.041</td>
+<td>-0.004</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">mexican</th>
+<td>0.0456</td>
+<td>0.188</td>
+<td>0.242</td>
+<td>0.809</td>
+<td>-0.323</td>
+<td>0.415</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">hispanic</th>
+<td>0.1132</td>
+<td>0.160</td>
+<td>0.708</td>
+<td>0.479</td>
+<td>-0.200</td>
+<td>0.427</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">black</th>
+<td>-0.5373</td>
+<td>0.135</td>
+<td>-3.994</td>
+<td>0.000</td>
+<td>-0.801</td>
+<td>-0.274</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">asian</th>
+<td>0.4502</td>
+<td>0.206</td>
+<td>2.185</td>
+<td>0.029</td>
+<td>0.046</td>
+<td>0.854</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">other</th>
+<td>0.2065</td>
+<td>0.158</td>
+<td>1.309</td>
+<td>0.190</td>
+<td>-0.103</td>
+<td>0.516</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0/1</th>
+<td>5.9175</td>
+<td>0.409</td>
+<td>14.465</td>
+<td>0.000</td>
+<td>5.116</td>
+<td>6.719</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1/2</th>
+<td>-0.3248</td>
+<td>0.048</td>
+<td>-6.779</td>
+<td>0.000</td>
+<td>-0.419</td>
+<td>-0.231</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2/3</th>
+<td>-0.0702</td>
+<td>0.043</td>
+<td>-1.650</td>
+<td>0.099</td>
+<td>-0.154</td>
+<td>0.013</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>We will run our model one more time before checking for proportionality, this time without the private_ins covariate, and the kcal covariates. Caffeine has no clinical backing as being a covariate for FLD, showed little to no correlation in the EDA, and has an insignificant p-value here. KCal had an incredibly high VIF in the EDA stage (37!), and is insignifcant here. As discussed earlier, KCal is likely a mask for high quantities in other macronutrients and BMI. Hence we have reason to drop them in this upcoming model.</p>
+<div id="ea18ec3b" class="cell" data-execution_count="5">
+<div class="cell-output cell-output-display">
+<table class="simpletable caption-top table table-sm table-striped small">
+<tbody>
+<tr class="odd">
+<td></td>
+<th data-quarto-table-cell-role="th">coef</th>
+<th data-quarto-table-cell-role="th">std err</th>
+<th data-quarto-table-cell-role="th">z</th>
+<th data-quarto-table-cell-role="th">P&gt;|z|</th>
+<th data-quarto-table-cell-role="th">[0.025</th>
+<th data-quarto-table-cell-role="th">0.975]</th>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">cig_smoker_ever</th>
+<td>0.1167</td>
+<td>0.079</td>
+<td>1.476</td>
+<td>0.140</td>
+<td>-0.038</td>
+<td>0.272</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">sleep_weekday</th>
+<td>-0.0087</td>
+<td>0.025</td>
+<td>-0.345</td>
+<td>0.730</td>
+<td>-0.058</td>
+<td>0.041</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">no_ins_12_mon</th>
+<td>-0.2885</td>
+<td>0.189</td>
+<td>-1.525</td>
+<td>0.127</td>
+<td>-0.659</td>
+<td>0.082</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">bmi</th>
+<td>0.1940</td>
+<td>0.007</td>
+<td>25.887</td>
+<td>0.000</td>
+<td>0.179</td>
+<td>0.209</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">sex</th>
+<td>0.3423</td>
+<td>0.080</td>
+<td>4.278</td>
+<td>0.000</td>
+<td>0.185</td>
+<td>0.499</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">age</th>
+<td>0.0167</td>
+<td>0.003</td>
+<td>6.231</td>
+<td>0.000</td>
+<td>0.011</td>
+<td>0.022</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">born_us</th>
+<td>-0.1039</td>
+<td>0.128</td>
+<td>-0.809</td>
+<td>0.419</td>
+<td>-0.356</td>
+<td>0.148</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">fam_inc_to_pov</th>
+<td>-0.0082</td>
+<td>0.028</td>
+<td>-0.293</td>
+<td>0.770</td>
+<td>-0.063</td>
+<td>0.047</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">hep_b</th>
+<td>0.0800</td>
+<td>0.294</td>
+<td>0.272</td>
+<td>0.785</td>
+<td>-0.496</td>
+<td>0.656</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">mins_seden_daily_stan</th>
+<td>0.0076</td>
+<td>0.039</td>
+<td>0.193</td>
+<td>0.847</td>
+<td>-0.069</td>
+<td>0.085</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">sugar_stan</th>
+<td>-0.0522</td>
+<td>0.044</td>
+<td>-1.195</td>
+<td>0.232</td>
+<td>-0.138</td>
+<td>0.033</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">fat_stan</th>
+<td>0.1250</td>
+<td>0.067</td>
+<td>1.854</td>
+<td>0.064</td>
+<td>-0.007</td>
+<td>0.257</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">chol_stan</th>
+<td>-0.0162</td>
+<td>0.047</td>
+<td>-0.346</td>
+<td>0.729</td>
+<td>-0.108</td>
+<td>0.075</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">water_stan</th>
+<td>-0.0293</td>
+<td>0.039</td>
+<td>-0.745</td>
+<td>0.456</td>
+<td>-0.106</td>
+<td>0.048</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">salt_stan</th>
+<td>0.1790</td>
+<td>0.058</td>
+<td>3.073</td>
+<td>0.002</td>
+<td>0.065</td>
+<td>0.293</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">prediabetes</th>
+<td>0.2147</td>
+<td>0.101</td>
+<td>2.122</td>
+<td>0.034</td>
+<td>0.016</td>
+<td>0.413</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">diabetes</th>
+<td>0.0158</td>
+<td>0.121</td>
+<td>0.130</td>
+<td>0.896</td>
+<td>-0.222</td>
+<td>0.253</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">private_ins</th>
+<td>-0.0457</td>
+<td>0.084</td>
+<td>-0.542</td>
+<td>0.588</td>
+<td>-0.211</td>
+<td>0.120</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">rare_drink</th>
+<td>-0.0182</td>
+<td>0.155</td>
+<td>-0.117</td>
+<td>0.907</td>
+<td>-0.323</td>
+<td>0.286</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">some_drink</th>
+<td>-0.1741</td>
+<td>0.161</td>
+<td>-1.078</td>
+<td>0.281</td>
+<td>-0.491</td>
+<td>0.142</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">often_drink</th>
+<td>-0.1984</td>
+<td>0.169</td>
+<td>-1.170</td>
+<td>0.242</td>
+<td>-0.530</td>
+<td>0.134</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">drk_but_no12</th>
+<td>0.0055</td>
+<td>0.169</td>
+<td>0.033</td>
+<td>0.974</td>
+<td>-0.325</td>
+<td>0.336</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">fiber</th>
+<td>-0.0083</td>
+<td>0.006</td>
+<td>-1.378</td>
+<td>0.168</td>
+<td>-0.020</td>
+<td>0.003</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">vit_e</th>
+<td>-0.0335</td>
+<td>0.009</td>
+<td>-3.603</td>
+<td>0.000</td>
+<td>-0.052</td>
+<td>-0.015</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">mexican</th>
+<td>0.1637</td>
+<td>0.188</td>
+<td>0.871</td>
+<td>0.384</td>
+<td>-0.205</td>
+<td>0.532</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">hispanic</th>
+<td>-0.1250</td>
+<td>0.160</td>
+<td>-0.782</td>
+<td>0.434</td>
+<td>-0.438</td>
+<td>0.188</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">black</th>
+<td>0.0575</td>
+<td>0.131</td>
+<td>0.440</td>
+<td>0.660</td>
+<td>-0.199</td>
+<td>0.314</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">asian</th>
+<td>0.0768</td>
+<td>0.208</td>
+<td>0.369</td>
+<td>0.712</td>
+<td>-0.331</td>
+<td>0.485</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">other</th>
+<td>-0.0900</td>
+<td>0.157</td>
+<td>-0.572</td>
+<td>0.567</td>
+<td>-0.398</td>
+<td>0.218</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0/1</th>
+<td>5.3935</td>
+<td>0.403</td>
+<td>13.396</td>
+<td>0.000</td>
+<td>4.604</td>
+<td>6.183</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1/2</th>
+<td>-0.3321</td>
+<td>0.048</td>
+<td>-6.931</td>
+<td>0.000</td>
+<td>-0.426</td>
+<td>-0.238</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2/3</th>
+<td>-0.0810</td>
+<td>0.043</td>
+<td>-1.901</td>
+<td>0.057</td>
+<td>-0.164</td>
+<td>0.003</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>This model looks far cleaner than the one we started with, but still has a ways to go. We will now perform a Brant-Wald Test for proportionality on this model.</p>
+<pre class="{r brant wald test}"><code># | echo: false
+
+# performing prop test in R
+
+library(tidyverse)
+library(MASS)
+library(brant)
+
+r_prepropXY = read_csv('./data/preprop_XY.csv')
+r_prepropXY$cap_cat = ordered(r_prepropXY$cap_cat)
+
+r_preprop_model &lt;- polr(
+    cap_cat ~ .- cap_cat,
+    data = r_prepropXY,
+    method = 'logistic',
+    control = list(maxit = 100000)
+)
+
+brant(r_preprop_model)</code></pre>
+<p>From this Brant test, parallel regression holds for this model barely, and we will now proceed to testing additional models based off of this model. We will make sure to check this assumption again in the future when we have come to a final model.</p>
+</section>
+<section id="testing-several-models" class="level2">
+<h2 class="anchored" data-anchor-id="testing-several-models">Testing Several models</h2>
+<p>The first model we will test will simply drop all the non-significant covariates from our above model at the <span class="math inline">\(\alpha = 0.05\)</span> level. Note that we keep categorical covariates that are insignificant if they have a catgegory involved that is significant, so as not to treat ceratin categories within the covariate as ‘special’.</p>
+<p>This means we will drop the cigarrete smoking binary, sleep_weekday, no_ins_12_mon, born_us, fam_inc_to_pov, hep_b, mins_seden_daily_stan, sugar_stan, fat_stan, chol_stan, water_stan, private_ins, all drinking covariates, fiber, and all race covariates.</p>
+<div id="466f4ef0" class="cell" data-execution_count="7">
+<div class="cell-output cell-output-display">
+<table class="simpletable caption-top table table-sm table-striped small">
+<tbody>
+<tr class="odd">
+<td></td>
+<th data-quarto-table-cell-role="th">coef</th>
+<th data-quarto-table-cell-role="th">std err</th>
+<th data-quarto-table-cell-role="th">z</th>
+<th data-quarto-table-cell-role="th">P&gt;|z|</th>
+<th data-quarto-table-cell-role="th">[0.025</th>
+<th data-quarto-table-cell-role="th">0.975]</th>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">bmi</th>
+<td>0.1931</td>
+<td>0.007</td>
+<td>26.544</td>
+<td>0.000</td>
+<td>0.179</td>
+<td>0.207</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">sex</th>
+<td>0.2282</td>
+<td>0.078</td>
+<td>2.943</td>
+<td>0.003</td>
+<td>0.076</td>
+<td>0.380</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">age</th>
+<td>0.0164</td>
+<td>0.002</td>
+<td>6.984</td>
+<td>0.000</td>
+<td>0.012</td>
+<td>0.021</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">salt_stan</th>
+<td>0.2105</td>
+<td>0.043</td>
+<td>4.842</td>
+<td>0.000</td>
+<td>0.125</td>
+<td>0.296</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">prediabetes</th>
+<td>0.5368</td>
+<td>0.100</td>
+<td>5.356</td>
+<td>0.000</td>
+<td>0.340</td>
+<td>0.733</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">diabetes</th>
+<td>0.1993</td>
+<td>0.117</td>
+<td>1.706</td>
+<td>0.088</td>
+<td>-0.030</td>
+<td>0.428</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">vit_e</th>
+<td>-0.0333</td>
+<td>0.007</td>
+<td>-4.501</td>
+<td>0.000</td>
+<td>-0.048</td>
+<td>-0.019</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0/1</th>
+<td>5.7762</td>
+<td>0.268</td>
+<td>21.541</td>
+<td>0.000</td>
+<td>5.251</td>
+<td>6.302</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1/2</th>
+<td>-0.3363</td>
+<td>0.048</td>
+<td>-7.027</td>
+<td>0.000</td>
+<td>-0.430</td>
+<td>-0.242</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2/3</th>
+<td>-0.0813</td>
+<td>0.043</td>
+<td>-1.911</td>
+<td>0.056</td>
+<td>-0.165</td>
+<td>0.002</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>This model performs phenominally. As no surprise, it contains covaraites which were all signaled to be important in the EDA stage, all with low VIF as well.</p>
+<p>Our next model will be carefully selected from the previous information and clinical reasoning. It will contain all the covariates from the preivuos model except for salt_stan, as they are statictally and clinically significant. It will also contain drinking covariates, mins_seden_daily_stan, fat_stan, and sugar_stan. Basically, all the covariates most relevant in fat production.</p>
+<div id="a3e76fcc" class="cell" data-execution_count="8">
+<div class="cell-output cell-output-display">
+<table class="simpletable caption-top table table-sm table-striped small">
+<tbody>
+<tr class="odd">
+<td></td>
+<th data-quarto-table-cell-role="th">coef</th>
+<th data-quarto-table-cell-role="th">std err</th>
+<th data-quarto-table-cell-role="th">z</th>
+<th data-quarto-table-cell-role="th">P&gt;|z|</th>
+<th data-quarto-table-cell-role="th">[0.025</th>
+<th data-quarto-table-cell-role="th">0.975]</th>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">bmi</th>
+<td>0.1982</td>
+<td>0.007</td>
+<td>27.013</td>
+<td>0.000</td>
+<td>0.184</td>
+<td>0.213</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">age</th>
+<td>0.0173</td>
+<td>0.002</td>
+<td>7.398</td>
+<td>0.000</td>
+<td>0.013</td>
+<td>0.022</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">sex</th>
+<td>0.3517</td>
+<td>0.077</td>
+<td>4.584</td>
+<td>0.000</td>
+<td>0.201</td>
+<td>0.502</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">prediabetes</th>
+<td>-0.2411</td>
+<td>0.101</td>
+<td>-2.393</td>
+<td>0.017</td>
+<td>-0.439</td>
+<td>-0.044</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">diabetes</th>
+<td>0.0905</td>
+<td>0.118</td>
+<td>0.769</td>
+<td>0.442</td>
+<td>-0.140</td>
+<td>0.321</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">vit_e</th>
+<td>-0.0259</td>
+<td>0.008</td>
+<td>-3.220</td>
+<td>0.001</td>
+<td>-0.042</td>
+<td>-0.010</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">mins_seden_daily_stan</th>
+<td>-0.0241</td>
+<td>0.038</td>
+<td>-0.639</td>
+<td>0.523</td>
+<td>-0.098</td>
+<td>0.050</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">fat_stan</th>
+<td>0.1638</td>
+<td>0.050</td>
+<td>3.305</td>
+<td>0.001</td>
+<td>0.067</td>
+<td>0.261</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">sugar_stan</th>
+<td>-0.1267</td>
+<td>0.042</td>
+<td>-3.031</td>
+<td>0.002</td>
+<td>-0.209</td>
+<td>-0.045</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0/1</th>
+<td>5.9617</td>
+<td>0.274</td>
+<td>21.727</td>
+<td>0.000</td>
+<td>5.424</td>
+<td>6.500</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1/2</th>
+<td>-0.3432</td>
+<td>0.048</td>
+<td>-7.175</td>
+<td>0.000</td>
+<td>-0.437</td>
+<td>-0.249</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2/3</th>
+<td>-0.0950</td>
+<td>0.043</td>
+<td>-2.231</td>
+<td>0.026</td>
+<td>-0.178</td>
+<td>-0.012</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>We see this model also performs well. diabetes in insignificant, but prediabtes, isn’t, a contrast from the last model, one of the covariates may have multicollinearity with the diabetes binary. Overall, this model looks strong with three diet covariates being significant.</p>
+<p>Our last model will be created from the EDA only. This means it will include bmi, sex, age, no_ins_12_mon, diabetes, sugar_stan, fiber_stan, fat_stan, and vit_e, all the variables picked out as most important.</p>
+<div id="9a05e2b1" class="cell" data-execution_count="9">
+<div class="cell-output cell-output-display">
+<table class="simpletable caption-top table table-sm table-striped small">
+<tbody>
+<tr class="odd">
+<td></td>
+<th data-quarto-table-cell-role="th">coef</th>
+<th data-quarto-table-cell-role="th">std err</th>
+<th data-quarto-table-cell-role="th">z</th>
+<th data-quarto-table-cell-role="th">P&gt;|z|</th>
+<th data-quarto-table-cell-role="th">[0.025</th>
+<th data-quarto-table-cell-role="th">0.975]</th>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">bmi</th>
+<td>0.1954</td>
+<td>0.007</td>
+<td>26.524</td>
+<td>0.000</td>
+<td>0.181</td>
+<td>0.210</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">age</th>
+<td>0.0151</td>
+<td>0.002</td>
+<td>6.366</td>
+<td>0.000</td>
+<td>0.010</td>
+<td>0.020</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">sex</th>
+<td>0.1542</td>
+<td>0.077</td>
+<td>2.005</td>
+<td>0.045</td>
+<td>0.003</td>
+<td>0.305</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">no_ins_12_mon</th>
+<td>-0.4510</td>
+<td>0.189</td>
+<td>-2.387</td>
+<td>0.017</td>
+<td>-0.821</td>
+<td>-0.081</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">prediabetes</th>
+<td>0.1328</td>
+<td>0.100</td>
+<td>1.330</td>
+<td>0.184</td>
+<td>-0.063</td>
+<td>0.329</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">diabetes</th>
+<td>0.3007</td>
+<td>0.118</td>
+<td>2.548</td>
+<td>0.011</td>
+<td>0.069</td>
+<td>0.532</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">sugar_stan</th>
+<td>0.1488</td>
+<td>0.042</td>
+<td>3.583</td>
+<td>0.000</td>
+<td>0.067</td>
+<td>0.230</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">fiber</th>
+<td>-0.0057</td>
+<td>0.005</td>
+<td>-1.045</td>
+<td>0.296</td>
+<td>-0.016</td>
+<td>0.005</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">fat_stan</th>
+<td>0.1212</td>
+<td>0.050</td>
+<td>2.441</td>
+<td>0.015</td>
+<td>0.024</td>
+<td>0.219</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">vit_e</th>
+<td>-0.0275</td>
+<td>0.009</td>
+<td>-3.013</td>
+<td>0.003</td>
+<td>-0.045</td>
+<td>-0.010</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">0/1</th>
+<td>5.6218</td>
+<td>0.280</td>
+<td>20.059</td>
+<td>0.000</td>
+<td>5.073</td>
+<td>6.171</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">1/2</th>
+<td>-0.3409</td>
+<td>0.048</td>
+<td>-7.121</td>
+<td>0.000</td>
+<td>-0.435</td>
+<td>-0.247</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">2/3</th>
+<td>-0.0869</td>
+<td>0.043</td>
+<td>-2.041</td>
+<td>0.041</td>
+<td>-0.170</td>
+<td>-0.003</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<p>We see this model also looks quite strong. Fiber is again insignificant, but diabetes regains its significance interestingly, and no_ins_12_mon is significant as well.</p>
+<p>Overall we avoid forward selection of testing and keeping significant p-values as advised in class, and come out with four models from a combination of backwards selection and different types of statistical reasoning. Now we test these four models to</p>
+<section id="bic-and-lr-tables" class="level3">
+<h3 class="anchored" data-anchor-id="bic-and-lr-tables">BIC and LR Tables</h3>
+<p>Below is a table of LR test results performed of the three models agianst that initial preprop model we used to select them from. It also contains the BIC and AIC value for each model.</p>
+<div id="b4acbd6e" class="cell" data-execution_count="10">
+<div class="cell-output cell-output-display">
+<div>
+
+
+<table class="dataframe caption-top table table-sm table-striped small" data-border="1">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Models</th>
+<th data-quarto-table-cell-role="th">LR_Test</th>
+<th data-quarto-table-cell-role="th">AIC</th>
+<th data-quarto-table-cell-role="th">BIC</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">0</th>
+<td>Prop Tested Model</td>
+<td>NaN</td>
+<td>6606.414638</td>
+<td>6798.661039</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">1</th>
+<td>Backwards Selected Model</td>
+<td>0.983338</td>
+<td>6572.718134</td>
+<td>6632.795134</td>
+</tr>
+<tr class="odd">
+<th data-quarto-table-cell-role="th">2</th>
+<td>Clinically Selected Model</td>
+<td>0.001065</td>
+<td>6611.527435</td>
+<td>6683.619835</td>
+</tr>
+<tr class="even">
+<th data-quarto-table-cell-role="th">3</th>
+<td>EDA Selected Model</td>
+<td>0.141332</td>
+<td>6594.027850</td>
+<td>6672.127950</td>
+</tr>
+</tbody>
+</table>
+
+</div>
+</div>
+</div>
+<p>As we can see from the table above, our clinically selected model does very poorly against the Prop Tested Model. It’s AIC is the highest, BIC higher than the EDA and Backwards Models, and has very significant p value from the LR test. This tells me we should throw it out. The Backwards Selected Model and the EDA selected model both pass the Likelihood Ratio Test, and have AIC and BIC much smaller than the large model we did a proportionality test on. While it looks like we have a clear winner in the backwards selected model, we will choose both the backwards selected mode and the EDA selected model to compare with CV in our final analysis.</p>
+</section>
+<section id="coefficient-interpreations-for-best-model." class="level3">
+<h3 class="anchored" data-anchor-id="coefficient-interpreations-for-best-model.">Coefficient Interpreations for ‘Best Model’.</h3>
+<p>Of the two models we narrowed our search down to above, the leading model in my opinion is the ‘Backwards Selection Model’ and its summary table is shown below. Also given is a table of the standardization values for salt needed in the interpretation.</p>
+<p><strong>tie back to research questions</strong></p>
+</section>
+</section>
+<section id="initial-issues" class="level2">
+<h2 class="anchored" data-anchor-id="initial-issues">Initial Issues</h2>
+<p>I also originally had model convergence issues, which was fixed by just increasing the amount of model iteratons to 100000, at which point the model converged well below that number (20000ish).</p>
+<p>Furthermore, Python has no native method to run a Brant-Wald for proportionalty, hence I had to port my data over to R, run the same model, and perform the test before moving on.</p>
+</section>
+<section id="steps-for-final-report" class="level2">
+<h2 class="anchored" data-anchor-id="steps-for-final-report">Steps for Final Report</h2>
+<p>I have narrowed myself down to two models using AIC/BIC values and LR tests. I will perform cross validation in the next portion of the project, with HUM as the metric, and use this to decide on my final model. On this final model, I will run another Brant-Wald test, a Pearson Goodness of Fit test, and use cook’s distance to find high leverage high residual points and assess whether there is justification to remove them from the model to tighten up estimates without comprimising our research process, or whether they should remain. I will finally interpret this final model.</p>
+</section>
+<section id="appendix" class="level2">
+<h2 class="anchored" data-anchor-id="appendix">Appendix</h2>
+<section id="overview-1" class="level3">
+<h3 class="anchored" data-anchor-id="overview-1">Overview</h3>
+</section>
+<section id="initial-proportional-model-1" class="level3">
+<h3 class="anchored" data-anchor-id="initial-proportional-model-1">Initial Proportional Model</h3>
+</section>
+<section id="testing-several-models-1" class="level3">
+<h3 class="anchored" data-anchor-id="testing-several-models-1">Testing Several Models</h3>
+</section>
+<section id="initial-issues-1" class="level3">
+<h3 class="anchored" data-anchor-id="initial-issues-1">Initial Issues</h3>
+</section>
+<section id="steps-for-final-report-1" class="level3">
+<h3 class="anchored" data-anchor-id="steps-for-final-report-1">Steps for Final Report</h3>
+</section>
+</section>
+</section>
+
+</main>
+<!-- /main column -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp('/' + window.location.host + '/');
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>

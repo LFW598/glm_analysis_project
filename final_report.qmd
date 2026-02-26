@@ -1,0 +1,25 @@
+---
+title: "BST 223 Data Analysis Project: Initial Model & Results"
+author: Lucas Webster
+jupyter: python3
+fig-env: none
+format: pdf
+---
+
+# Introduction and Research Question
+
+## Dataset Description and Rationale for Selection
+
+## Justification of Statistical Models Used
+
+## Summary of Model Results and Interpretation of Parameters
+
+## Diagnostic Checks and Goodness of Fit Assessments
+
+## Limitations and Conclusions
+
+## Appendix
+
+All data and code for this project, as well as proposal, EDA, and Initial Modeling files can be found at the GitHub repository at the below link. The ReadMe contains all information needed about packages used. Lastly, there is a seperate file titled R code for the R code needed to run certain tests for which python packages have not yet been developed.
+
+The link to the github is [here](https://github.com/LFW598/glm_analysis_project). A special thank you to Dr. Hong Li for her guidance and in-depth yet succinct help in this short project.

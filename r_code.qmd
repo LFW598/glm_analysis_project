@@ -1,0 +1,24 @@
+```{r initial brant wald test}
+# | echo: false
+
+# performing prop test in R
+
+library(tidyverse)
+library(MASS)
+library(brant)
+
+r_prepropXY = read_csv('./data/preprop_XY.csv')
+r_prepropXY$cap_cat = ordered(r_prepropXY$cap_cat)
+
+r_preprop_model <- polr(
+    cap_cat ~ .- cap_cat,
+    data = r_prepropXY,
+    method = 'logistic',
+    control = list(maxit = 100000)
+)
+
+result <- brant(r_preprop_model)
+brant_df <- as.data.frame(result)
+total_prop_result = brant_df[1,]
+write.csv(total_prop_result, './data/first_prop_result.csv', row.names = FALSE)
+```

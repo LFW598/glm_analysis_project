@@ -1,8 +1,8 @@
 # glm_analysis_project_BST_223
 BST 223 Data Analysis Project
 
-Talk about project details
+In this BST 223 Final Data Analysis Project, I was tasked with using GLM's to answer a question from a chosen dataset. I chose a biostatistical dataset, specifically, data from the NHANES survey from August 2021 - August 2023, in order to analyze predictors of FLD classification using the CAP score measure. My data was truncated to those over the age of 18 who recieved a CAP score in a medical exam as part of their participation in the study, and who completed all the survey information on diet, which was used to estimate their macronutrient consumption which was used here. I ran a cumulative logistic model to predict FLD category based on CAP score. All the original data can found in the data folder with the .xpt tag, and .csv tags are data used within my analysis after cleaning. QMD files and rendered pdfs for the project proposal, EDA, Initial Modeling Stage, and Final Report can all be found here, as well as a txt file that details some of the cryptic encoding in the original xpt files.
 
 The data was obtained from this [link](https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/default.aspx?Cycle=2021-2023), with all xpt datafile names being related to the document sections on the site. 
 
-This project was done using the packages pandas, numpy, statsmodels, matplotlib, seaborn
+This project was done using the packages pandas, numpy, statsmodels, matplotlib, seaborn, and scipy in Python, and R was briefly used to perform Brant-Wald Tests for proportionality and compute HUM with cross-validation, in which the packages tidyverse, MASS, HUM, and brant were used.

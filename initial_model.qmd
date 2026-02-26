@@ -1,0 +1,520 @@
+---
+title: "BST 223 Data Analysis Project: Initial Model & Results"
+author: Lucas Webster
+jupyter: python3
+fig-env: none
+format: pdf
+---
+
+# Overview
+
+```{python packages and loading data}
+# | echo: false
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import statsmodels.api as sm
+from statsmodels.miscmodels.ordinal_model import OrderedModel
+import scipy.stats as stats
+
+nhanes_df_start = pd.read_csv('./data/final_nhanes_df.csv')
+nhanes_df = nhanes_df_start
+```
+
+In this 'Initial Model and Results' portion of the project, I plan to first run a proportional-odds cumulative-logit model on every variable, and then remove those with obvious p-value, clinical, and covariance issues that were discussed in the EDA stage. Then we will rerun our model and test the proportionality assumption, to see if we can proceed with model selection and testing under this assumption. From there, I will narrow down several candidate nested models of which I will perform LR tests and use BIC/AIC to compare them. Using BIC, AIC, and these LR tests, I will narrow down to 2 models, of which I will provide coefficient interpretaion for what I believe to be the 'leader' among them, and discuss problems I ran into along the way.
+
+## Initial Proportional Model
+
+```{python design and y matrirx}
+# | echo: false
+
+# setting up the initial columns
+
+# renaming other to other_race really quick
+
+nhanes_df = nhanes_df.rename({
+    'race': 'other_race'
+})
+
+initial_cols = ['cap_cat', 'cig_smoker_ever', 'sleep_weekday', 'no_ins_12_mon', 'bmi', 'sex', 'age', 'born_us', 'fam_inc_to_pov', 'hep_b',  'mins_seden_daily_stan', 'kcal_stan', 'carb_stan', 'sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'salt_stan', 'caff_stan', 'hs_dropout', 'hs_grad', 'aa', 'bach', 'prediabetes', 'diabetes', 'private_ins', 'rare_drink', 'some_drink', 'often_drink', 'drk_but_no12', 'fiber', 'vit_e', 'mexican', 'hispanic', 'black', 'asian', 'other']
+
+initial_XY = nhanes_df[initial_cols].dropna()
+```
+
+The below is our intial model with all covariates. I will be on the watch for kcal_stan, it had a VIF of 37 from our EDA, likley due to its high covariance with the macronutrient measures. The same goes for carb_stan, as it had a VIF above 15.
+
+```{python initial model}
+# | echo: false
+
+# our initial model with everything
+
+first_model = OrderedModel(
+    initial_XY['cap_cat'],
+    initial_XY.drop(columns = ['cap_cat']),
+    distr = 'logit'
+).fit(maxiter = 100000, disp = False)
+
+display(first_model.summary().tables[1])
+```
+
+We will make a few decisions for variable selection here. First, we will drop carb_stan, it had an incredibly high VIF (17!) value in the EDA stage and has an insignifcant p-value here. Carbs also showed little correlation in its visual diagnostic. We will also remove education level covariates, they also had incredibly high VIF in the EDA stage and p-values now, and while they showed some correlation in their visual diagnostic, commen sense tells me they are a likely a mask and collinear with fam_inc_to_pov, ie education level is a mask for economic status. Hence we remove them, which will also greatly increase the power of our model.
+
+```{python next model}
+# | echo: false
+
+# our next model without carbs, kcal, and education level
+
+next_XY = initial_XY.drop(columns = ['carb_stan', 'hs_dropout', 'hs_grad', 'aa', 'bach'])
+
+next_model = OrderedModel(
+    next_XY['cap_cat'],
+    next_XY.drop(columns = 'cap_cat'),
+    distr = 'logit'
+).fit(maxiter = 100000, disp = False)
+
+display(next_model.summary().tables[1])
+```
+
+We will run our model one more time before checking for proportionality, this time without the private_ins covariate, and the kcal covariates. Caffeine has no clinical backing as being a covariate for FLD, showed little to no correlation in the EDA, and has an insignificant p-value here. KCal had an incredibly high VIF in the EDA stage (37!), and is insignifcant here. As discussed earlier, KCal is likely a mask for high quantities in other macronutrients and BMI. Hence we have reason to drop them in this upcoming model.
+
+```{python last model before prop test}
+# | echo: false
+
+# model before proportionality test
+
+preprop_XY = next_XY.drop(columns = ['kcal_stan', 'caff_stan'])
+
+preprop_XY_model = preprop_XY
+
+preprop_model = OrderedModel(
+    preprop_XY_model['cap_cat'],
+    preprop_XY_model.drop(columns = 'cap_cat'),
+    distr = 'logit'
+).fit(maxiter = 100000, disp = False)
+
+display(preprop_model.summary().tables[1])
+```
+
+This model looks far cleaner than the one we started with, but still has a ways to go. We will now perform a Brant-Wald Test for proportionality on this model.
+
+```{python saving data to use in R}
+# | echo: false
+
+# exporting df for prop test
+
+preprop_XY.to_csv('./data/preprop_XY.csv', index = False)
+```
+
+**Brant-Wald Test Result**
+
+```{python brant wald test results}
+# | echo: false
+
+# showing the results of Brant-Walt Test from R
+
+initial_prop_test = pd.read_csv('./data/first_prop_result.csv')
+display(initial_prop_test)
+```
+
+From this Brant test, parallel regression holds for this model barely, and we will now proceed to testing additional models based off of this model. We will make sure to check this assumption again in the future when we have come to a final model.
+
+## Testing Several models
+
+The first model we will test will simply drop all the non-significant covariates from our above model at the $\alpha = 0.05$ level. Note that we keep categorical covariates that are insignificant if they have a catgegory involved that is significant, so as not to treat ceratin categories within the covariate as 'special'.
+
+This means we will drop the cigarrete smoking binary, sleep_weekday, no_ins_12_mon, born_us, fam_inc_to_pov, hep_b, mins_seden_daily_stan, sugar_stan, fat_stan, chol_stan, water_stan, private_ins, all drinking covariates, fiber, and all race covariates.
+
+**Backwards Selection Model**
+
+```{python model 1}
+# | echo: false
+
+# backward selection model
+
+XY1 = preprop_XY.drop(columns = ['cig_smoker_ever', 'sleep_weekday', 'no_ins_12_mon', 'born_us', 'fam_inc_to_pov', 'hep_b', 'mins_seden_daily_stan', 'sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'private_ins', 'rare_drink', 'some_drink', 'often_drink', 'drk_but_no12', 'fiber', 'mexican', 'black', 'asian', 'other', 'hispanic'])
+
+model_1 = OrderedModel(
+    XY1['cap_cat'],
+    XY1.drop(columns = 'cap_cat'),
+    distr = 'logit'
+).fit(maxiter = 100000, disp = False)
+
+display(model_1.summary().tables[1])
+```
+
+This model performs phenominally. As no surprise, it contains covaraites which were all signaled to be important in the EDA stage, all with low VIF as well.
+
+Our next model will be carefully selected from the previous information and clinical reasoning. It will contain all the covariates from the preivuos model except for salt_stan, as they are statictally and clinically significant. It will also contain drinking covariates, mins_seden_daily_stan, fat_stan, and sugar_stan. Basically, all the covariates most relevant in fat production.
+
+**Clinical Reasoning Model**
+
+```{python model 2}
+# | echo: false
+
+# clinical reasoning model
+
+XY2 = preprop_XY[['bmi', 'age', 'sex', 'prediabetes', 'diabetes', 'vit_e', 'cap_cat', 'mins_seden_daily_stan', 'fat_stan', 'sugar_stan', 'drk_but_no12', 'rare_drink', 'some_drink', 'often_drink']]
+
+model_2 = OrderedModel(
+    XY2['cap_cat'],
+    XY2.drop(columns = 'cap_cat'),
+    distr = 'logit'
+).fit(maxiter = 100000, disp = False)
+
+display(model_2.summary().tables[1])
+```
+
+We see this model also performs well. diabetes in insignificant, but prediabtes, isn't, a contrast from the last model, one of the covariates may have multicollinearity with the diabetes binary. Overall, this model looks strong with three diet covariates being significant.
+
+Our last model will be created from the EDA only. This means it will include bmi, sex, age, no_ins_12_mon, diabetes, sugar_stan, fiber_stan, fat_stan, and vit_e, all the variables picked out as most important.
+
+**EDA Supported Model**
+
+```{python model 3}
+# | echo: false
+
+# EDA model
+
+XY3 = preprop_XY[['bmi', 'age', 'sex', 'no_ins_12_mon', 'prediabetes', 'diabetes', 'sugar_stan', 'fiber', 'fat_stan', 'vit_e', 'cap_cat']]
+
+model_3 = OrderedModel(
+    XY3['cap_cat'],
+    XY3.drop(columns = 'cap_cat'),
+    distr = 'logit'
+).fit(maxiter = 100000, disp = False)
+
+display(model_3.summary().tables[1])
+```
+
+We see this model also looks quite strong. Fiber is again insignificant, but diabetes regains its significance interestingly, and no_ins_12_mon is significant as well.
+
+Overall we avoid forward selection of testing and keeping significant p-values as advised in class, and come out with four models from a combination of backwards selection and different types of statistical reasoning. Now we test these four models to 
+
+### BIC and LR Tables
+
+Below is a table of LR test results performed of the three models agianst that initial preprop model we used to select them from. It also contains the BIC and AIC value for each model.
+
+**LR Test, AIC, and BIC Table**
+
+```{python aic, bic, and lr table}
+# | echo: false
+
+# making table with aic, bic, and LR values
+
+model_names = ['Prop Tested Model', 'Backwards Selected Model', 'Clinically Selected Model', 'EDA Selected Model']
+
+bic_models = [preprop_model.bic, model_1.bic, model_2.bic, model_3.bic]
+aic_models = [preprop_model.aic, model_1.aic, model_2.aic, model_3.aic]
+
+def lr_ordered_model(full_model, nested_model):
+    lr = 2 * (full_model.llf - nested_model.llf)
+    df = full_model.params.size - nested_model.params.size
+    p = 1 - stats.chi2.cdf(lr, df)
+    return(p)
+
+lr_test_ps = [np.nan, lr_ordered_model(preprop_model, model_1), lr_ordered_model(preprop_model, model_2), lr_ordered_model(preprop_model, model_3)]
+
+compare_df = pd.DataFrame({
+    'Models': model_names,
+    'LR_Test': lr_test_ps,
+    'AIC': aic_models,
+    'BIC': bic_models
+})
+
+display(compare_df)
+```
+
+As we can see from the table above, our clinically selected model does very poorly against the Prop Tested Model. It's AIC is the highest, BIC higher than the EDA and Backwards Models, and has very significant p value from the LR test. This tells me we should throw it out. The Backwards Selected Model and the EDA selected model both pass the Likelihood Ratio Test, and have AIC and BIC much smaller than the large model we did a proportionality test on. While it looks like we have a clear winner in the backwards selected model, we will choose both the backwards selected mode and the EDA selected model to compare with CV in our final analysis.
+
+### Coefficient Interpreations for 'Best Model'.
+
+Of the two models we narrowed our search down to above, the leading model in my opinion is the 'Backwards Selection Model' and its summary table is shown below. Also given is a table of the standardization values for salt needed in the interpretation.
+
+**Backwards Model Table**
+
+```{python leading model summary and table}
+# | echo: false
+
+# creating salt standardization table and displaying it with backwards selection model summary
+
+salt_mean = nhanes_df['salt'].mean()
+salt_std = nhanes_df['salt'].std()
+
+salt_table = pd.DataFrame({
+    'Mean': [salt_mean],
+    'Std. Dev': [salt_std]
+})
+
+display(model_1.summary().tables[1])
+print('Salt Standardization Table (mg)')
+display(salt_table)
+```
+
+The coefficient interpretations are in order as follows.
+
+Holding all other covariates constant, a 1 unit increase in BMI increases the log odds of moving up an FLD category by 0.1931.
+
+Holding all other covariates constant, a 1 unit increase in age increases the log odds of moving up an FLD category by 0.0164.
+
+Holding all other covariates constant, male sex increases the log odds of moving up in FLD category by 0.2282 over female sex.
+
+Holding all other covariates constant, a 1 standard deviation increase in salt(mg) increases the log odds of moving up an FLD category by 0.2105
+
+Holding all other covariates constant, being prediabetic or borderline diabetec increases the log odds of moving up in FLD category by 0.5368 over having no prediabtes or diabetes diagnosis.
+
+Holding all other covariates constant, being diabetec increases the log odds of moving up in FLD category by 0.1993
+
+Holding all other covariates constant, a one unit increase in vitamin e (mg) decreases the log odds in moving up in FLD category by 0.0333.
+
+For an individual with all covariates 0 and average daily salt intake, the log odds of being in FLD category 0 are 5.7762.
+
+For an individual with all covariates 0 and average daily salt intake, the log odds of being in FLD category 1 or lower is -0.3363.
+
+For an individual with all covariates 0 and average daily salt intake, the log odds of being in FLD category 2 or lower is -0.0813.
+
+Important to note, none of these log odds make logical sense, as someone will not have an age of 0 for example, they are simply building blocks to interpret a given individual. Additionally, the intercepts themselves don't make interpretive sense without an individual added. In my final report, I will run a standard individual and interpret that outcome, the above is an exercise in interpreation as the rubric asks for.
+
+As far as my research question goes, we have some dissapointing results. Alcohol showed no significance in any way, which we clinically know to not be the case. It may have something to do with my cutpoints for frequently drinking, or medical intervention with alcoholics. With more time, we could explore the former, but not the latter.
+
+As far as exploring age goes, we see that obviously an increase in age increases FLD chance. However, its nowhere near as strong as other covariates. This should be a warning sign to young people, you are not invincible, and while your age may protect you slightly, it won't as much as your other habits which cause diseases like diabetes or obesity.
+
+Lastly, in the case of predicting FLD on the whole, we see that bmi, age, and sex are critical, as conventionally thought. Vitamin E also seems to lower FLD risk, which matches up with clinical reasoning, showing the importance of micronutrients as well. Furthermore salt seems to have a positive effect on FLD categorization, but this clinically doesn't make sense. It leads me to believe high salt content is a mask for other macronutrients and diets, ie a high salt diet may be indicative of processed foods and diets with high fat and sugar.
+
+## Initial Issues
+
+I also originally had model convergence issues, which was fixed by just increasing the amount of model iteratons to 100000, at which point the first model converged well below that number (20000ish), and subsequent ones lower and lower.
+
+Furthermore, Python has no native method to run a Brant-Wald for proportionalty, hence I had to port my data over to R, run the same model, and perform the test before moving on.
+
+Statistically, there seem to be some in depth masking issues between diet covariates and exercise. The flip-flopping of significant covariates indicates that there are complex relationships between diet covariates. For example, salt seems significant in our small mode, but has no strong clinical significance in fat production. However, a high salt diet is often a sign of a diet high in unhealthy processed foods, so salt may just be the best mask for overall diet. Because of limited time in addressing all the complex relationships between, the backwards selection model provides the best chance of finding truly significant predictors. Another example would be fiber. High fiber has no clinical significance in liver fat, but in the EDA it showed promise, and in some models in this document it did too, but its more than likely just a mask for a healhty lifestyle.
+
+## Steps for Final Report
+
+I have narrowed myself down to two models using AIC/BIC values  and LR tests. I will perform cross validation in the next portion of the project, with HUM as the metric, and use this to decide on my final model. On this final model, I will run another Brant-Wald test, a Pearson Goodness of Fit test, and use cook's distance to find high leverage high residual points and assess whether there is justification to remove them from the model to tighten up estimates without comprimising our research process, or whether they should remain. I will finally interpret this final model. 
+
+## Appendix
+
+### Overview
+
+```{python Appendix packages and loading data}
+# | eval: false
+
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import statsmodels.api as sm
+from statsmodels.miscmodels.ordinal_model import OrderedModel
+import scipy.stats as stats
+
+nhanes_df_start = pd.read_csv('./data/final_nhanes_df.csv')
+nhanes_df = nhanes_df_start
+```
+
+### Initial Proportional Model
+
+```{python Appendix design and y matrirx}
+# | eval: false
+
+# setting up the initial columns
+
+# renaming other to other_race really quick
+
+nhanes_df = nhanes_df.rename({
+    'race': 'other_race'
+})
+
+initial_cols = ['cap_cat', 'cig_smoker_ever', 'sleep_weekday', 'no_ins_12_mon', 'bmi', 'sex', 'age', 'born_us', 'fam_inc_to_pov', 'hep_b',  'mins_seden_daily_stan', 'kcal_stan', 'carb_stan', 'sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'salt_stan', 'caff_stan', 'hs_dropout', 'hs_grad', 'aa', 'bach', 'prediabetes', 'diabetes', 'private_ins', 'rare_drink', 'some_drink', 'often_drink', 'drk_but_no12', 'fiber', 'vit_e', 'mexican', 'hispanic', 'black', 'asian', 'other']
+
+initial_XY = nhanes_df[initial_cols].dropna()
+```
+
+```{python Appendix initial model}
+# | eval: false
+
+# our initial model with everything
+
+first_model = OrderedModel(
+    initial_XY['cap_cat'],
+    initial_XY.drop(columns = ['cap_cat']),
+    distr = 'logit'
+).fit(maxiter = 100000, disp = False)
+
+display(first_model.summary().tables[1])
+```
+
+```{python Appendix next model}
+# | eval: false
+
+# our next model without carbs, kcal, and education level
+
+next_XY = initial_XY.drop(columns = ['carb_stan', 'hs_dropout', 'hs_grad', 'aa', 'bach'])
+
+next_model = OrderedModel(
+    next_XY['cap_cat'],
+    next_XY.drop(columns = 'cap_cat'),
+    distr = 'logit'
+).fit(maxiter = 100000, disp = False)
+
+display(next_model.summary().tables[1])
+```
+
+```{python Appendix last model before prop test}
+# | eval: false
+
+# model before proportionality test
+
+preprop_XY = next_XY.drop(columns = ['kcal_stan', 'caff_stan'])
+
+preprop_XY_model = preprop_XY
+
+preprop_model = OrderedModel(
+    preprop_XY_model['cap_cat'],
+    preprop_XY_model.drop(columns = 'cap_cat'),
+    distr = 'logit'
+).fit(maxiter = 100000, disp = False)
+
+display(preprop_model.summary().tables[1])
+```
+
+```{python Appendix saving data to use in R}
+# | eval: false
+
+# exporting df for prop test
+
+preprop_XY.to_csv('./data/preprop_XY.csv', index = False)
+```
+
+```{python Appendix brant wald test results}
+# | eval: false
+
+# showing the results of Brant-Walt Test from R
+
+initial_prop_test = pd.read_csv('./data/first_prop_result.csv')
+display(initial_prop_test)
+```
+
+### Testing Several Models
+
+```{python Appendix model 1}
+# | eval: false
+
+# backward selection model
+
+XY1 = preprop_XY.drop(columns = ['cig_smoker_ever', 'sleep_weekday', 'no_ins_12_mon', 'born_us', 'fam_inc_to_pov', 'hep_b', 'mins_seden_daily_stan', 'sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'private_ins', 'rare_drink', 'some_drink', 'often_drink', 'drk_but_no12', 'fiber', 'mexican', 'black', 'asian', 'other', 'hispanic'])
+
+model_1 = OrderedModel(
+    XY1['cap_cat'],
+    XY1.drop(columns = 'cap_cat'),
+    distr = 'logit'
+).fit(maxiter = 100000, disp = False)
+
+display(model_1.summary().tables[1])
+```
+
+```{python Appendix model 2}
+# | eval: false
+
+# clinical reasoning model
+
+XY2 = preprop_XY[['bmi', 'age', 'sex', 'prediabetes', 'diabetes', 'vit_e', 'cap_cat', 'mins_seden_daily_stan', 'fat_stan', 'sugar_stan', 'drk_but_no12', 'rare_drink', 'some_drink', 'often_drink']]
+
+model_2 = OrderedModel(
+    XY2['cap_cat'],
+    XY2.drop(columns = 'cap_cat'),
+    distr = 'logit'
+).fit(maxiter = 100000, disp = False)
+
+display(model_2.summary().tables[1])
+```
+
+```{python Appendix model 3}
+# | eval: false
+
+# EDA model
+
+XY3 = preprop_XY[['bmi', 'age', 'sex', 'no_ins_12_mon', 'prediabetes', 'diabetes', 'sugar_stan', 'fiber', 'fat_stan', 'vit_e', 'cap_cat']]
+
+model_3 = OrderedModel(
+    XY3['cap_cat'],
+    XY3.drop(columns = 'cap_cat'),
+    distr = 'logit'
+).fit(maxiter = 100000, disp = False)
+
+display(model_3.summary().tables[1])
+```
+
+```{python Appendix aic, bic, and lr table}
+# | eval: false
+
+# making table with aic, bic, and LR values
+
+model_names = ['Prop Tested Model', 'Backwards Selected Model', 'Clinically Selected Model', 'EDA Selected Model']
+
+bic_models = [preprop_model.bic, model_1.bic, model_2.bic, model_3.bic]
+aic_models = [preprop_model.aic, model_1.aic, model_2.aic, model_3.aic]
+
+def lr_ordered_model(full_model, nested_model):
+    lr = 2 * (full_model.llf - nested_model.llf)
+    df = full_model.params.size - nested_model.params.size
+    p = 1 - stats.chi2.cdf(lr, df)
+    return(p)
+
+lr_test_ps = [np.nan, lr_ordered_model(preprop_model, model_1), lr_ordered_model(preprop_model, model_2), lr_ordered_model(preprop_model, model_3)]
+
+compare_df = pd.DataFrame({
+    'Models': model_names,
+    'LR_Test': lr_test_ps,
+    'AIC': aic_models,
+    'BIC': bic_models
+})
+
+display(compare_df)
+```
+
+```{python Appendix leading model summary and table}
+# | eval: false
+
+# creating salt standardization table and displaying it with backwards selection model summary
+
+salt_mean = nhanes_df['salt'].mean()
+salt_std = nhanes_df['salt'].std()
+
+salt_table = pd.DataFrame({
+    'Mean': [salt_mean],
+    'Std. Dev': [salt_std]
+})
+
+display(model_1.summary().tables[1])
+print('Salt Standardization Table (mg)')
+display(salt_table)
+```
+
+### R Code in Seperate File
+
+```{r initial brant wald test}
+# | eval: false
+
+# performing prop test in R
+
+library(tidyverse)
+library(MASS)
+library(brant)
+
+r_prepropXY = read_csv('./data/preprop_XY.csv')
+r_prepropXY$cap_cat = ordered(r_prepropXY$cap_cat)
+
+r_preprop_model <- polr(
+    cap_cat ~ .- cap_cat,
+    data = r_prepropXY,
+    method = 'logistic',
+    control = list(maxit = 100000)
+)
+
+result <- brant(r_preprop_model)
+brant_df <- as.data.frame(result)
+total_prop_result = brant_df[1,]
+write.csv(total_prop_result, './data/first_prop_result.csv', row.names = FALSE)
+```
