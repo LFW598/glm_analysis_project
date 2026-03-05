@@ -5,4 +5,4 @@ In this BST 223 Final Data Analysis Project, I was tasked with using GLM's to an
 
 The data was obtained from this [link](https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/default.aspx?Cycle=2021-2023), with all xpt datafile names being related to the document sections on the site. 
 
-This project was done using the packages pandas, numpy, statsmodels, matplotlib, seaborn, and scipy in Python, and R was briefly used to perform Brant-Wald Tests for proportionality and compute HUM with cross-validation, in which the packages tidyverse, MASS, HUM, and brant were used.
+This project was done using the packages pandas, numpy, statsmodels, matplotlib, seaborn, and scipy in Python, and R was briefly used in the final report to perform Brant-Wald Tests for proportionality, compute HUM with cross-validation, and run and verify the partial proportional odds model, in which the packages tidyverse, MASS, HUM, caret, and brant were used.

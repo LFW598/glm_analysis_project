@@ -120,6 +120,7 @@ sns.boxplot(data = diet_compare_df, x = 'subset', y = 'med_cap')
 plt.title('Distribution of Median Cap Score Across Diet Info')
 plt.xlabel('Subset')
 plt.ylabel('Median Cap Score')
+plt.savefig('./plots/med_cap_diet.png', dpi=300, bbox_inches='tight')
 plt.show()
 
 sns.boxplot(data = diet_compare_df, x = 'subset', y = 'age')
@@ -1080,6 +1081,7 @@ sns.heatmap(
 )
 
 plt.title(f'Correlations |r| ≥ {threshold}')
+plt.savefig('./plots/correlation.png', dpi = 300, bbox_inches = 'tight')
 plt.show()
 ```
 
@@ -1107,6 +1109,8 @@ vif_df = pd.DataFrame({
 })
 
 display(vif_df)
+
+vif_df.to_csv('./data/vif_table.csv', index = False)
 ```
 
 We observe high VIF on our dummy variables for education level. We also observe high VIF from some of our diet variables, like kcal. This confirms that some diet variables have high multicollinearity, and it may be better to keep only some of them rather than all. KCal for example is likely too high and shouldn't be considered, and is a mask for other high macronutrient covariates and bmi. Hence, in model building, I will need to be careful about which diet covariates to select.

@@ -1,7 +1,7 @@
 ```{r initial brant wald test}
 # | echo: false
 
-# performing prop test in R
+# performing prop test in R for preprop model
 
 library(tidyverse)
 library(MASS)
@@ -21,4 +21,262 @@ result <- brant(r_preprop_model)
 brant_df <- as.data.frame(result)
 total_prop_result = brant_df[1,]
 write.csv(total_prop_result, './data/first_prop_result.csv', row.names = FALSE)
+```
+
+```{r cv, hum, and prop test for two prop odds models}
+# | echo: false
+
+# performing 10-Fold CV with HUM as the metric in R for each model
+
+library(tidyverse)
+library(MASS)
+library(HUM)
+library(caret)
+library(brant)
+
+# setting up models
+
+final_df = read_csv('./data/preprop_XY.csv')
+final_df$cap_cat = ordered(final_df$cap_cat, levels = c(0,1,2,3))
+
+model1_df = final_df[, c('bmi', 'sex', 'age', 'salt_stan', 'prediabetes', 'diabetes', 'vit_e', 'cap_cat')]
+model2_df = final_df[, c('bmi', 'sex', 'age', 'salt_stan', 'prediabetes', 'diabetes', 'vit_e', 'cap_cat', 'mins_seden_daily_stan', 'drk_but_no12', 'rare_drink', 'some_drink', 'often_drink', 'cig_smoker_ever')]
+
+r_model1 <- polr(
+    cap_cat ~ .,
+    data = model1_df,
+    method = 'logistic',
+    control = list(maxit = 100000)
+)
+
+r_model2 <- polr(
+    cap_cat ~ .,
+    data = model2_df,
+    method = 'logistic',
+    control = list(maxit = 100000)
+)
+
+# performing cross validation with HUM as the metric
+
+set.seed(03042026)
+
+folds1 <- createFolds(model1_df$cap_cat, k = 10, list = TRUE, returnTrain = FALSE)
+
+folds2 <- createFolds(model2_df$cap_cat, k = 10, list = TRUE, returnTrain = FALSE)
+
+hum_scores1 <- numeric(length(folds1))
+
+for (i in seq_along(folds1)) {
+  test_idx <- folds1[[i]]
+  train_data <- model1_df[-test_idx, ]
+  test_data  <- model1_df[test_idx, ]
+  
+  fit <- polr(cap_cat ~ ., data = train_data, method = "logistic", control = list(maxit = 100000))
+  
+  pred_eta <- predict(fit, newdata = test_data, type = "probs")
+  score <- pred_eta[, '3']
+
+  df_hum = data.frame(
+    score = score,
+    Class = test_data$cap_cat
+  )
+  
+  hum_scores1[i] <- CalculateHUM_seq(data = df_hum,
+                                     indexF = 'score',
+                                     indexClass = 'Class',
+                                     indexLabel = levels(model1_df$cap_cat))$HUM
+}
+
+hum_scores2 <- numeric(length(folds2))
+
+for (i in seq_along(folds2)) {
+  test_idx <- folds2[[i]]
+  train_data <- model2_df[-test_idx, ]
+  test_data  <- model2_df[test_idx, ]
+  
+  fit <- polr(cap_cat ~ ., data = train_data, method = "logistic", control = list(maxit = 100000))
+  pred_probs <- predict(fit, newdata = test_data, type = "probs")
+  
+  pred_eta <- predict(fit, newdata = test_data, type = "probs")
+  score <- pred_eta[, '3']
+
+  df_hum = data.frame(
+    score = score,
+    Class = test_data$cap_cat
+  )
+  
+  hum_scores2[i] <- CalculateHUM_seq(data = df_hum,
+                                     indexF = 'score',
+                                     indexClass = 'Class',
+                                     indexLabel = levels(model2_df$cap_cat))$HUM}
+
+mean_hum1 = mean(hum_scores1)
+mean_hum2 = mean(hum_scores2)
+
+var_hum1 = var(hum_scores1)
+var_hum2 = var(hum_scores2)
+
+final_hum_df = data.frame(
+    Model = c('Backward', 'Backward + Clinical'),
+    Mean = c(mean_hum1, mean_hum2),
+    Variance = c(var_hum1, var_hum2)
+)
+write.csv(final_hum_df, './data/final_hum.csv', row.names = FALSE)
+
+# performing prop test on our final model in R
+
+final_brant = brant(r_model2)
+final_brant_df = as.data.frame(final_brant)
+final_prop_result = final_brant_df
+write.csv(final_prop_result, './data/final_prop_result.csv')
+```
+
+```{r final proportional odds model, echo=FALSE}
+
+library(tidyverse)
+library(VGAM)
+
+# creating final partial proportional odds model
+
+final_df = read_csv('./data/preprop_XY.csv')
+final_df$cap_cat = ordered(final_df$cap_cat, levels = c(0,1,2,3))
+model2_df = final_df[, c('bmi', 'sex', 'age', 'salt_stan', 'prediabetes', 'diabetes', 'vit_e', 'cap_cat', 'mins_seden_daily_stan', 'drk_but_no12', 'rare_drink', 'some_drink', 'often_drink', 'cig_smoker_ever')]
+
+final_model <- VGAM::vglm(
+  cap_cat ~ .,
+  family = VGAM::cumulative(
+    link = "logitlink",
+    parallel = FALSE ~ bmi + sex + mins_seden_daily_stan
+  ),
+  data = model2_df,
+  control = VGAM::vglm.control(maxit = 100000)
+)
+
+coef_est <- round(coef(final_model), 4)
+se <- round(sqrt(diag(vcov(final_model))), 4)
+z <- round(coef_est / se, 4)
+p <- round(2 * pnorm(-abs(z)), 4)
+
+summary_df <- data.frame(
+  covariate = names(coef_est),
+  coef = coef_est,
+  exp_coef = round(exp(coef_est), 4),
+  std_error = se,
+  z_value = z,
+  p_value = p
+)
+
+write.csv(summary_df, './data/final_model_summary.csv', row.names = FALSE)
+
+# deviance test for goodness of fit
+
+D <- deviance(final_model)
+df_res <- df.residual(final_model)
+
+p_value <- 1 - pchisq(D, df = df_res)
+p_value
+
+deviance_test_df = data.frame(
+    Deviance = D,
+    df = df_res,
+    p_value = p_value
+)
+
+write.csv(deviance_test_df, './data/deviance_test_df.csv', row.names=FALSE)
+
+# residuals plot
+
+n = nrow(model2_df)
+p = 21
+
+pearson_res <- residuals(final_model, type = "pearson")
+pearson_res <- apply(abs(pearson_res), 1, max)
+lev <- hatvalues(final_model)
+lev <- apply(lev, 1, max)
+std_pearson_res <- pearson_res / sqrt(1-lev)
+cooks_d <- (pearson_res^2 / p) * (lev / (1-lev))
+influential <- cooks_d > (4/n)
+obs = 1:n
+
+diag_df <- data.frame(
+  leverage = lev,
+  std_pearson = std_pearson_res,
+  cooks_d = cooks_d,
+  influential = influential,
+  obs = obs
+)
+
+diag_df <- diag_df[lev > 0.99,] # removing lvg of 1 observation
+
+# collecting outliers into dataframe
+
+pearson_outliers = model2_df
+pearson_outliers$std_pear_res <- std_pearson_res
+pearson_outliers$leverage <- lev
+pearson_outliers <- pearson_outliers[std_pearson_res > 5,]
+write.csv(pearson_outliers, './data/pearson_outliers.csv', row.names=FALSE)
+
+# plot of residuals and leverage
+
+res_lev_plot <- ggplot(diag_df, aes(x = leverage, y = std_pearson,
+                    size = cooks_d, color = influential)) +
+  geom_point(alpha = 0.6) +
+  geom_hline(yintercept = 2, linetype = "dashed", color = "red") +
+  geom_vline(xintercept = 2 * p / n, linetype = "dashed", color = "blue") +
+  geom_text(
+    data = subset(diag_df, influential & abs(std_pearson) > 3),
+    aes(label = obs),
+    vjust = -0.8,
+    size = 2.5
+  ) +
+  scale_color_manual(values = c("FALSE" = "grey60", "TRUE" = "purple")) +
+  labs(
+    title = "Leverage vs Std Pearson Residual (size = Cook's D)",
+    x = "Leverage (H_ii)",
+    y = "Standardized Pearson Residual"
+  ) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+ggsave("./plots/res_lev_plot.png", plot = res_lev_plot, width = 8, height = 6, dpi = 300)
+```
+
+```{r checking model w/o high lvg obs, echo=FALSE}
+
+# re-running our final model without the incredibly high leverage observation
+
+library(tidyverse)
+library(VGAM)
+
+final_df = read_csv('./data/preprop_XY.csv')
+final_df$cap_cat = ordered(final_df$cap_cat, levels = c(0,1,2,3))
+model2_df = final_df[, c('bmi', 'sex', 'age', 'salt_stan', 'prediabetes', 'diabetes', 'vit_e', 'cap_cat', 'mins_seden_daily_stan', 'drk_but_no12', 'rare_drink', 'some_drink', 'often_drink', 'cig_smoker_ever')]
+
+edit_df = model2_df[-1376,] # 1376 is the index of the observation which has a maximum leverage of 1 in our final model.
+
+edit_model = VGAM::vglm(
+  cap_cat ~ .,
+  family = VGAM::cumulative(
+    link = "logitlink",
+    parallel = FALSE ~ bmi + sex + mins_seden_daily_stan
+  ),
+  data = edit_df,
+  control = VGAM::vglm.control(maxit = 100000)
+)
+
+coef_est <- round(coef(edit_model), 4)
+se <- round(sqrt(diag(vcov(edit_model))), 4)
+z <- round(coef_est / se, 4)
+p <- round(2 * pnorm(-abs(z)), 4)
+
+edit_summary_df <- data.frame(
+  covariate = names(coef_est),
+  coef = coef_est,
+  exp_coef = round(exp(coef_est), 4),
+  std_error = se,
+  z_value = z,
+  p_value = p
+)
+
+write.csv(edit_summary_df, './data/edit_model_summary.csv', row.names = FALSE)
 ```

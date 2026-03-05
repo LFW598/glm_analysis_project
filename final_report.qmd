@@ -1,25 +1,342 @@
 ---
-title: "BST 223 Data Analysis Project: Initial Model & Results"
+title: "BST 223 Data Analysis Project: Final Report"
 author: Lucas Webster
 jupyter: python3
-fig-env: none
 format: pdf
 ---
 
-# Introduction and Research Question
+## Introduction and Research Question
+
+```{python importing packages}
+#| echo: false
+
+from IPython.display import Image
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+import statsmodels.api as sm
+from statsmodels.miscmodels.ordinal_model import OrderedModel
+import scipy.stats as stats
+```
+
+Fatty Liver Disease (FLD) is on the rise in United States, [especially so amongst younger people](https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/default.aspx?Cycle=2021-2023). This is concerning, as liver disease is a known consequence of alcholism and old age, but with rates on the rise for young people, all Americans need to be on alert for the myriad of causes of Fatty Liver Disease. To explore these causes, I sourced data from the NHANES survey conducted from August 2021 to August 2023, found at this [link](https://wwwn.cdc.gov/nchs/nhanes/continuousnhanes/default.aspx?Cycle=2021-2023). This data is collected by the CDC every two years to assess the general health and lifestyle habits of the American population. It includes laboratory tests and over 50 questionairres, though not all are completed by every individual.
+
+In order to obtain an assessment of FLD among the American population, I sourced the median CAP scores (a measure of liver fat) from this survey, of which I partioned into four categories aligning with clinical FLD diagnoses. A CAP score of 100-238 being given a 0 (no Fatty Liver Disease), 238-260 being given a 1 (Steatosis Grade 1, Mild Fatty Liver Disease) 260-290 being given a 2 (Steatosis Grade 2, Moderate Fatty Liver Disease), and 290-400 given a 3 (Steatosis Grade 3, Severe Fatty Liver Disease). I then collected data from various other datasets available from the survey of which were relevant to an indviduals overall health, lifestyle, and healthcare access, such as diet covariates, exercise covariates, and demographic covariates.
+
+In specific, I conducted this data analysis project to discover what covariates outside of alcohol use and age are central to the development of fatty liver disease in order to help explain the rise in Fatty Liver Disease among young people.
+
+Because there is great detail given to model selection in the following sections, I will hold off on inference and clinical connection until the end of the report so as not to become redundant and adhere to the page limit.
 
 ## Dataset Description and Rationale for Selection
 
+My original dataset contained over 40 covarites. These covariates included demographics like race, income, and healthcare, diet covariates like daily fat, salt, and water intake, and health covariates like alcohol consumption, diabetes precence, and exercise habits. Ultimately the dataset was narrowed down to comprise of only individuals who completed the CAP test and received a score, over 18 years of age, and completed the dietary information portion of the survey. These truncations were made for the following reasons. First, individuals under the age of 18 didn't receive the same survey across the board as those over 18. Second, diet covariates were deemed of great interest for FLD progression. However, missingness across all diet covaraiates was high (~15%), so a complete case analysis of diet covariates was conducted to examine whether removing these indivduals with missingness would harm inference.
+
+```{python med_cap_diet_image}
+#| echo: false
+#| label: fig-med-cap-diet
+#| fig-cap: "Distribution of CAP Across Diet Info Precense"
+
+Image("./plots/med_cap_diet.png", width = 300)
+```
+
+While demographics were the same across those with and without diet covariates, as can be seen in my EDA, importantly, the response variable is consistent across both those with and without diet covariates. Addionally important to note, the age distribution of of those with dietary information was slightly lower than that of those without dietary information; it was the only demographic with this discrepancy. However, the discrepancy was minor, and my research question focuses on younger individuals, so I went ahead with the complete case analysis. Further high-missingness (>15%) led me to drop all exercise covariates, as well as an insulin measure, which is notably unfortunate as this would likely be a strong predictor of liver fat. This data cleaning left the covariates listed. Anything ending in a '_stan' was standardized.
+
+```{python covariates list}
+#| echo: false
+
+import textwrap
+vif_df = pd.read_csv('./data/vif_table.csv')
+values = vif_df.loc[vif_df["Covariate"] != "const", "Covariate"].astype(str).tolist()
+text = ", ".join(values)
+print(textwrap.fill(text, width=80))
+```
+
+```{python correlation}
+#| echo: false
+#| fig-pos: H
+#| fig-cap: "Correlation Table (|r| > 0.7)"
+
+Image("./plots/correlation.png", width = 300)
+```
+
+We see high correlation among all the macronutrient measures as well as salt. They are also jointly likely a mask for bmi; higher consumption of one $\iff$ higher consumption of another $\iff$ higher BMI. Furthermore, public_ins and private_ins are direct inverses of each other, leading to perfect correlation as the few individuals with no insurance were removed in the data cleaning process. The final dataset contained 3004 observations.
+
 ## Justification of Statistical Models Used
+
+The statistical model I began with was a proportional odds cumulative logistic model, due to the ordinal classification nature of the data. My model will take form...
+
+$$
+g(\pi_k) = \log(\frac{\pi_1(x) + ... + \pi_j(x)}{\pi_{k+1}(x) + ... + \pi_3(x)}) \log(\frac{P(Y_i \leq k)}{P(Y_i > k})= \alpha_k - \beta(x), (k = 0, 1, 2) 
+$$
+
+With $Y_i$ denoting the FLD category and $X$ denoting the design matrix. My original model ran with every single covariate listed above. Then those with very high p-values, VIF issues (>10), and no EDA support were removed. The proportional odds model I fit on this data was bloated full of insiginficant predictors, and barely passed the proportional odds assumption test. It can be found in my Initial Modeling Stage writeup. From here, I used backwards selection to select a model and then clinical reasoning to re-add clinically significant coviariates back into the model, leaving me with two models to compare, a purely backwards selected model, and a model created from backwards selection and clinical reasoning.
+
+```{python initial prop_model}
+#| echo: false
+
+# initial model
+
+preprop_XY_model = pd.read_csv('./data/preprop_XY.csv')
+
+preprop_model = OrderedModel(
+    preprop_XY_model['cap_cat'],
+    preprop_XY_model.drop(columns = 'cap_cat'),
+    distr = 'logit'
+).fit(maxiter = 100000, disp = False)
+```
+
+::: {layout-ncol=2}
+
+```{python model 1}
+#| echo: false
+#| tbl-cap: "Backwards Selection Model"
+
+# backward selection model
+
+XY1 = preprop_XY_model.drop(columns = ['cig_smoker_ever', 'sleep_weekday', 'no_ins_12_mon', 'born_us', 'fam_inc_to_pov', 'hep_b', 'mins_seden_daily_stan', 'sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'private_ins', 'rare_drink', 'some_drink', 'often_drink', 'drk_but_no12', 'fiber', 'mexican', 'black', 'asian', 'other', 'hispanic', 'carb_stan'])
+
+model_1_no_fit = OrderedModel(
+    XY1['cap_cat'],
+    XY1.drop(columns = 'cap_cat'),
+    distr = 'logit'
+)
+
+model_1 = model_1_no_fit.fit(maxiter = 100000, disp = False)
+
+tbl_1 = model_1.summary().tables[1]
+header = tbl_1.data[0]
+rows = tbl_1.data[1:]
+model_1_df = pd.DataFrame(rows, columns=header)
+
+model_1_df = model_1_df[['', 'coef', 'std err', 'P>|z|']]
+
+model_1_df
+```
+
+```{python model 2}
+#| echo: false
+#| tbl-cap: "Backwards + Clinical Model"
+
+# 'backwards + clinical' reasoning model
+
+XY2 = preprop_XY_model[['bmi', 'age', 'sex', 'prediabetes', 'diabetes', 'vit_e', 'cap_cat', 'mins_seden_daily_stan', 'salt_stan', 'drk_but_no12', 'rare_drink', 'some_drink', 'often_drink', 'cig_smoker_ever']]
+
+model_2 = OrderedModel(
+    XY2['cap_cat'],
+    XY2.drop(columns = 'cap_cat'),
+    distr = 'logit'
+).fit(maxiter = 100000, disp = False)
+
+tbl_2 = model_2.summary().tables[1]
+header = tbl_2.data[0]
+rows = tbl_2.data[1:]
+model_2_df = pd.DataFrame(rows, columns=header)
+
+model_2_df = model_2_df[['', 'coef', 'std err', 'P>|z|']]
+
+model_2_df
+```
+
+:::
+
+The final model is to be interpretted later, but off of first glance, we see the 'Backwards + Clinical Model' to have a glaring issue: alcohol scales the cumulative logit up. Data cleaning methods were meticulously combed through to ensure that a user error did not result in this. Furthermore, EDA showed little difference amongst those with different rates of drinking. However, removing alcohol consumption from a clinical reasoning model of liver health is poor statistical practice, so we keep it and analyze further later on.
+
+```{python comparison table}
+#| echo: false
+#| tbl-cap: "Diagnostic Summary of 3 Models"
+
+# making comparison table for model diagnostics for the two models
+
+model_names = ['Source Model', 'Backwards Selected Model', 'Clinically Selected Model']
+
+bic_models = [preprop_model.bic, model_1.bic, model_2.bic]
+aic_models = [preprop_model.aic, model_1.aic, model_2.aic]
+
+def lr_ordered_model(full_model, nested_model):
+    lr = 2 * (full_model.llf - nested_model.llf)
+    df = full_model.params.size - nested_model.params.size
+    p = 1 - stats.chi2.cdf(lr, df)
+    return(p)
+
+lr_test_ps = [np.nan, lr_ordered_model(preprop_model, model_1), lr_ordered_model(preprop_model, model_2)]
+
+compare_df = pd.DataFrame({
+    'Models': model_names,
+    'LR_Test': lr_test_ps,
+    'AIC': aic_models,
+    'BIC': bic_models
+})
+
+display(compare_df)
+```
+
+Here we see both models to pass the likelihood ratio test against the larger model they are both derived from, and their AICs and BICs improve significantly. However, the BIC for the Backwards Selected Model is a significant improvement over the Clinically Selected Model, and the opposite is true for the AIC. Further metrics are required.
+
+We proceed with 10-Fold Cross Validation with HUM as the metric
+
+```{python cross-validation results}
+#| echo: false
+#| tbl-cap: "HUM Results"
+
+# HUM results comparing two models
+
+HUM_table = pd.read_csv('./data/final_hum.csv')
+
+HUM_table['LR Test'] = [np.nan, lr_ordered_model(model_2, model_1)]
+HUM_table
+```
+
+We see from the above HUM result that the 'Backwards + Clinical' Model has a slightly better average HUM score across the 10 test folds. For reference, both scores of 0.18 are quite good; completely random assignment by the model would be a HUM score of about 0.0417. Hence its over four times better than random. Lastly, we also see the LRT test between the two models to return an incredibly small p-value; the 'Backwards + Clinical' (larger) model is preferred.
+
+```{python proportional odds failure}
+#| echo: false
+#| tbl-cap: "Brant Test for Proportional Odds"
+
+# brant test on 'backwards + clinical' model
+
+prop_odds_table = pd.read_csv('./data/final_prop_result.csv')
+prop_odds_table.rename(columns = {'Unnamed: 0': 'Covariate', 'probability': 'p-value'}, inplace=True)
+prop_odds_table
+```
+
+Testing the Proportional Odds Assumption using the Brant Test, we notice that three covariates violate the assupmption severely, bmi, sex, and mins_seden_daily_stan. Hence our final model will be a partial proportional odds model with the above covariates. It will take the following form, allowing bmi, sex, and mins_seden_daily_stan in $\gamma$ to vary with the intercept.
+
+$$
+g(\pi_k) = \log(\frac{\pi_1(x) + ... + \pi_k(x)}{\pi_{k+1}(x) + ... + \pi_3(x)}) = \alpha_k + \beta(x) + \gamma_k(z), (k = 0, 1, 2) 
+$$
+
+X represents the covariates which kept the proportional odds assumption, and Z the covariates which violated it and are now 'level dependent.'
+
+**Important to Note:** Due to the differenced in how 'OrderedModel' in python fits a proportional odds cumulative logisitic model, and how 'VGAM' fits a partial proportional odds (PPO) cumulative logistic model, the signage of $\beta$ is flipped. Hence a positive $\beta$ above and negative one below means the model's agree on the effect of $\beta$.
 
 ## Summary of Model Results and Interpretation of Parameters
 
+```{python ppo model}
+#| echo: false
+#| tbl-cap: "Final Partial Proportional Odds Model"
+
+# final ppo model
+
+final_model_summary = pd.read_csv('./data/final_model_summary.csv')
+final_model_summary
+```
+
+**In model summary (1:k=0, 2:k=1, 3:k=2)**
+
+```{python standardizing table}
+#| echo: false
+#| tbl-cap: "Standardized Values for Inference"
+
+# the standardization table needed for inference
+
+final_nhanes_df = pd.read_csv('./data/final_nhanes_df.csv')
+
+stand_df = pd.DataFrame({
+    'covariate': ['salt', 'mins_seden_daily'],
+    'mean': [float(round(final_nhanes_df['salt'].mean(), 4)), float(round(final_nhanes_df['mins_seden_daily'].mean(), 4))],
+    'std. dev.': [float(round(final_nhanes_df['salt'].std(), 4)), float(round(final_nhanes_df['mins_seden_daily'].std(), 4))]
+}) 
+
+stand_df
+```
+
+We have the following relationship in our model.
+
+$$
+\frac{\frac{P(Y_i \leq k|X_{i,j}+1)}{P(Y_i>k|X_{i,j}+1)}}{\frac{P(Y_i \leq k|X_{i,j})}{P(Y_i>k|X_{i,j})}} = e^{\beta_j}, k \in (0, 1, 2), i \in (1,...,n), j \in (1,...,p)
+$$
+
+Hence, $e^{\beta_j}$ is the scale factor holding all other covariates constant for a one unit increase in the cumulative logit. An increase in the cumulative logit means the likelihood of placement into a category $\leq j$ increases. Hence, $e^{\beta_k} > 1$ indicates an increase in the likelihood of being in category $\le j$, and $e^{\beta_k} < 1$ indicates an increase in the likelihood of being placed into a category $>j$. 
+
+A 'baseline' individual is female with no diabetic condition, has never drank alcohol in their life, and smoked less than 100 cigarettes in their lifetime.
+
+We interpret the siginificant ($\alpha = 0.05$) intercepts and coefficients in order as follows.
+
+For an individual with all covariates 0 (implying average salt and mins_seden_daily), their probability of being in FLD category 0 is 44 times that of being in an FLD category higher than 0, 76 times higher for FLD category $\leq 1$ compared to $>1$, and 223 times higher for FLD category $\leq 2$ compared to $>2$.
+
+Holding all other covariates constant, a one unit increase in BMI scales the cumulative logit at k=0 by 0.88, k=1 by 0.88, and k=2 by 0.88. This means at each FLD level, a one unit increase in BMI scales the cumulative logit by about 88%, meaning BMI has a positive effect on FLD classification (BMI up, probability of higher FLD category up).
+
+Holding all other covariates constant, being male over female scales the cumulative logit at k=0 by -0.71, k=1 by -0.72, and k=2 by -0.67. This means at each FLD level, being male scales the cumulative logit by roughly 68%, meaning BMI has a positive effect on FLD classification.
+
+Holding all other covariates constant, a year age increase scales the cumulative logit by 0.99. meaning higher FLD category placement becomes more likely, meaning age has a very slight positive effect on FLD classification.
+
+Holding all other covariates constant, a standard deviation increase in salt(mg) scales the cumulative logit by 0.89, meaning higher FLD category placement becomes more likely, and meaning salt has a positive effect on FLD classification.
+
+Holding all other covariates constant, being prediabetic (or 'borderline diabetic') over no diabetic condition scales the cumulative logit by 0.76, meaning higher FLD category placement becomes more likely, and meaning prediabetes has a postive effect on FLD classification.
+
+Holding all other covariates constant, being diabetic over no diabetic condition scales the cumulative logit by 0.61, meaning higher FLD category placement becomes more likely, and meaning prediabetes has a postive effect on FLD classification.
+
+Holding all other covariates constant, a unit increase in vitamin e(mg) scales the cumulative logit 1.02, meaning lower FLD catgeory placement becomes more likely, and meaning vitamin e has a negative effect on FLD classification.
+
+Holding all other covariates constant, at the k=2 level, a one standard deviation of minutes increase in sedentary activity scales the cumulative logit by 0.92, meaning placement into FLD category 3 becomes more likely, and meaning sedentary activity has a positive effect on FLD classification at the k=2 level.
+
+Holding all other covariates constant, smoking over 100 cigarretes in one's lifetieme (cig_smoker_ever) scales the cumulative logit by 0.85, meaning placement into a higher FLD category becomes more likely, and meaning smoking over 100 cigarettes in one's lifetime has a positive effect on FLD classification.
+
+All the results from this table agree with clinical findings; age, smoking, bmi, sedentary lifestyle, and diabetes all increase the chance of an individual having fatty liver disease, whereas vitamin e, a micronutrient central to liver health lessens the chances of FLD. Further domain impact will be given in the conclusion.
+
+**NOTE:** The word 'effect' here is used loosely, correlation fits better as many of these covariates may be masking the effect of a different health or lifestyle covariate not presented here.
+
 ## Diagnostic Checks and Goodness of Fit Assessments
+
+```{python deviance GOF test}
+#| echo: false
+#| tbl-cap: "Deviance GoF Test Results"
+
+deviance_residual_df = pd.read_csv('./data/deviance_test_df.csv')
+deviance_residual_df
+```
+
+Our final partial proportional odds model passes the deviance test, with a p-value very near 1. Now we turn to residual analysis for a more in depth analysis.
+
+Below observations with standardized pearson residuals greater than 5, ie much larger than expected. 
+
+**Note:** Since our cumulative logistic model fits three models total, we obtain three pearson residuals and three leverages per observation. The maximum of the absolute value of each of these values was obtained and used for the calculation of standardized residuals and cook's distance below.
+
+```{python pearson residuals}
+#| echo: false
+#| tbl-cap: "Std. Pearson Residual > 5"
+
+pearson_outliers_df = pd.read_csv('./data/pearson_outliers.csv')
+pearson_outliers_df = pearson_outliers_df.drop(columns = ['sex', 'age', 'salt_stan', 'drk_but_no12', 'rare_drink', 'some_drink', 'often_drink', 'cig_smoker_ever', 'vit_e', 'mins_seden_daily_stan'])
+pearson_outliers_df
+```
+
+```{python residual and leverage plot}
+#| echo: false
+#| fig-cap: "Plot of Std Pearson Residual vs. Leverage"
+
+Image('./plots/res_lev_plot.png', width = 300)
+```
+
+In Table 9, we examine individuals with pearson residuals > 5. They all share one attribute; extreme BMI and diabetic condition. This combination means the model likely expects them to be up in FLD category (cap_cat) 2 or 3; however, most sit at 2 or below. Whilst these observations are extreme, BMI and FLD are empirical measures and both of these values were recorded in the presence of a medical professional, and hence whilst extreme outliers, we have no justification to remove them from the model. In fact, with a sample size as large as ours from a population as diverse as the United States, a few outliers are expected. Additionally, since our standardized pearson residuals were calculated using the maximum leverage value, they are expected to be larger than normal, making this residual statistic quite conservative for inference. There is one observation of unique importance here, the 5th row. Their standardized pearson residual is comically large, likely due to their large leverage value of 1. Our model was re-run without the extreme high leverage point observation, and almost identical output was given, only slight changes in coefficient estimation was made. That model's summary is given in the appendix for reference.
+
+In the Figure 3, the above mentioned extreme observation is removed and we see no individuals with maximum leverage greater than 0.03 and standardized pearson residual greater than 3, meaning no individual has both extreme residual and leverage, and hence none are necessary for removal.
 
 ## Limitations and Conclusions
 
+The inference from our final PPO model is much more aligned with clinical expectations than the previous models. The glaring difference being alcohol consumption. Our proportional odds model had all levels of alcohol consumption having a negative relationship with FLD categorization, the opposite of clinical expectations. Our PPO model had them as insignificant. While this still doesn't align with expectations, its more reasonable than being counter to them. There are a couple reasons alcohol may have been insiginficant, the most notable being sampling issues. Alcohol consumption was self reported, and then measured in this model as 'not in the last 12 months', 'yearly to monthly', 'monthly to weekly', and 'weekly to daily'. These cutoffs may noisen the true effect. Furthermore, the amount of times an individual drinks may not be the best measure of alcohol's effect, but rather the amount of drinks they have at one time. Lastly, these measures are self reported, and only account for the last year; a recovered alcoholic will have low drinking response but high FLD category likely.
+
+Additionally, salt was deemed significant in FLD category progression, but I theorize salt itself may not be the culprit. Other macronutrient measures like kcal, fat, and sugar were all insiginficant and highly multicollinear, likely because high measures of such are directly correlated with BMI (stronger FLD signal). Salt on the other hand contributes nothing calorically to diet, but may a mask for type of diet; high salt consumption likely implies high consumption of unhealthy processed foods. Hence salt may be a diet indicator rather than FLD cause.
+
+Furthermore, in regards to the research question, our model provides the following answer; FLD is not inevitable with age, and the individual likely has much control. A year of aging had the smallest effect on increased FLD classifcation compared to all other covariates. BMI, smoking, and diabetes all were far more impactful on increasing FLD category progression.
+
+To summarize, while drinking certainly plays a role in FLD development, our model supports that a general healthy lifestyle is more important in FLD development than age. Also young people need to take their health upon themselves to avoid developing FLD; keep a healthy BMI, healthy diet, don't smoke, and avoid diabetes inducing habits (poor diet and exercise). As far as limitations for this model, the original response variable was CAP score, a continous covariate (literally a latent continous outcome), hence a non-classification model may fit the data better. Furthermore, with more time, better alcohol measure cutoff points could be determined to ensure the model model's alcohol correctly to obtain findings more consistent with surefire clinical knowledge. Also we do not measure genetics or mask it with race in our model, which plays a large role in FLD development as well.
+
+\newpage
+
 ## Appendix
 
-All data and code for this project, as well as proposal, EDA, and Initial Modeling files can be found at the GitHub repository at the below link. The ReadMe contains all information needed about packages used. Lastly, there is a seperate file titled R code for the R code needed to run certain tests for which python packages have not yet been developed.
+All data and code for this project, as well as proposal, EDA, and Initial Modeling files can be found at the GitHub repository at the below link. The ReadMe contains all information needed about packages used. Lastly, there is a seperate file titled R code for the R code needed to run certain tests for which python packages have not yet been developed. Python was used predominantly for all model steps before the final report, and the split was about 50/50 for this final report. Any code chunks in this pdf's source qmd file of which the code chunk is reading in a csv for a table, the csv was created in the R code file. All code is documented as to what its purpose is. The R code can be found in the file simply named 'r_code.qmd'.
 
-The link to the github is [here](https://github.com/LFW598/glm_analysis_project). A special thank you to Dr. Hong Li for her guidance and in-depth yet succinct help in this short project.
+The link to the github is [here](https://github.com/LFW598/glm_analysis_project). Special thanks to Dr. Hong Li for her guidance and in-depth yet succinct help in this short project.
+
+### Final Model w/o High Leverage observation
+
+```{python final model w/o high leverage observation}
+#| echo: false
+#| tbl-cap: "Final Model High Leverage Observation Removed"
+
+edit_summary_df = pd.read_csv('./data/edit_model_summary.csv')
+edit_summary_df
+```

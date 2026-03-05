@@ -25,6 +25,12 @@ nhanes_df = nhanes_df_start
 
 In this 'Initial Model and Results' portion of the project, I plan to first run a proportional-odds cumulative-logit model on every variable, and then remove those with obvious p-value, clinical, and covariance issues that were discussed in the EDA stage. Then we will rerun our model and test the proportionality assumption, to see if we can proceed with model selection and testing under this assumption. From there, I will narrow down several candidate nested models of which I will perform LR tests and use BIC/AIC to compare them. Using BIC, AIC, and these LR tests, I will narrow down to 2 models, of which I will provide coefficient interpretaion for what I believe to be the 'leader' among them, and discuss problems I ran into along the way.
 
+For reference, our model takes the form...
+
+$$
+\log(\frac{P(Y_i \leq k)}{P(Yi > k)}) = \alpha_k - X_i^T\beta
+$$
+
 ## Initial Proportional Model
 
 ```{python design and y matrirx}
@@ -135,18 +141,20 @@ This means we will drop the cigarrete smoking binary, sleep_weekday, no_ins_12_m
 
 XY1 = preprop_XY.drop(columns = ['cig_smoker_ever', 'sleep_weekday', 'no_ins_12_mon', 'born_us', 'fam_inc_to_pov', 'hep_b', 'mins_seden_daily_stan', 'sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'private_ins', 'rare_drink', 'some_drink', 'often_drink', 'drk_but_no12', 'fiber', 'mexican', 'black', 'asian', 'other', 'hispanic'])
 
-model_1 = OrderedModel(
+model_1_no_fit = OrderedModel(
     XY1['cap_cat'],
     XY1.drop(columns = 'cap_cat'),
     distr = 'logit'
-).fit(maxiter = 100000, disp = False)
+)
+
+model_1 = model_1_no_fit.fit(maxiter = 100000, disp = False)
 
 display(model_1.summary().tables[1])
 ```
 
 This model performs phenominally. As no surprise, it contains covaraites which were all signaled to be important in the EDA stage, all with low VIF as well.
 
-Our next model will be carefully selected from the previous information and clinical reasoning. It will contain all the covariates from the preivuos model except for salt_stan, as they are statictally and clinically significant. It will also contain drinking covariates, mins_seden_daily_stan, fat_stan, and sugar_stan. Basically, all the covariates most relevant in fat production.
+Our next model will be carefully selected from the previous information and clinical reasoning. It will contain all the covariates from the previous model, as they are statictally and clinically significant. It will also contain drinking covariates and mins_seden_daily_stan. Basically, we are adding covariates which we know to be clinically significant in liver fat to the model
 
 **Clinical Reasoning Model**
 
@@ -155,7 +163,7 @@ Our next model will be carefully selected from the previous information and clin
 
 # clinical reasoning model
 
-XY2 = preprop_XY[['bmi', 'age', 'sex', 'prediabetes', 'diabetes', 'vit_e', 'cap_cat', 'mins_seden_daily_stan', 'fat_stan', 'sugar_stan', 'drk_but_no12', 'rare_drink', 'some_drink', 'often_drink']]
+XY2 = preprop_XY[['bmi', 'age', 'sex', 'prediabetes', 'diabetes', 'vit_e', 'cap_cat', 'mins_seden_daily_stan', 'salt_stan', 'drk_but_no12', 'rare_drink', 'some_drink', 'often_drink']]
 
 model_2 = OrderedModel(
     XY2['cap_cat'],
@@ -226,11 +234,26 @@ compare_df = pd.DataFrame({
 display(compare_df)
 ```
 
-As we can see from the table above, our clinically selected model does very poorly against the Prop Tested Model. It's AIC is the highest, BIC higher than the EDA and Backwards Models, and has very significant p value from the LR test. This tells me we should throw it out. The Backwards Selected Model and the EDA selected model both pass the Likelihood Ratio Test, and have AIC and BIC much smaller than the large model we did a proportionality test on. While it looks like we have a clear winner in the backwards selected model, we will choose both the backwards selected mode and the EDA selected model to compare with CV in our final analysis.
+As we can see from the table above, our backwards selection model does the best in all testing categories. This makes sense, as the model is selected for the purpose of clinical significance. Our 'Clinically Selected Model' and 'EDA Selected Model' perform quite similarly, hence I will prefer the 'Clinically Selected Model', as it aligns with both the data and clinical reasoning, not just the data. For this reason, the two models we will proceed with into our final analysis will be the 'Backwards Selected Model' and the 'Clinically Selected Model'. While it looks like we have a clear winner in the 'Backwards Selected Model', we will compare both with CV in our final analysis.
 
 ### Coefficient Interpreations for 'Best Model'.
 
-Of the two models we narrowed our search down to above, the leading model in my opinion is the 'Backwards Selection Model' and its summary table is shown below. Also given is a table of the standardization values for salt needed in the interpretation.
+Of the two models we narrowed our search down to above, the leading model in my opinion is the 'Backwards Selection Model' and its summary table is shown below. Also given is a table of the standardization values for salt needed in the interpretation. 
+
+### Non-Statistical Explanation of Cumulative Odds Ratio
+
+I will be interpretting the change in cumulative odds. Basically how ones odds of being in the k-th FLD category or below compared to higher than the kth category change when holding all covariates constant and increasing the covariate of interest by 1. The following fraction is the ratio of two cumulative odds for reference...
+
+$$
+\frac{\frac{P(Y_i \leq k|X_{i,j}+1)}{P(Y_i>k|X_{i,j}+1)}}{\frac{P(Y_i \leq k|X_{i,j})}{P(Y_i>k|X_{i,j})}} = e^{-\beta_j}
+$$
+
+$$
+ k \in (0, 1, 2), i \in (1,...,n), j \in (1,...,p)
+$$
+
+We see if $e^{-\beta_j} > 1$, the numerator is greater than the denominator, and hence the cumulative odds of the $X_{i,j}+1$ are higher than the $X_{i,j}$ case, meaning the increase in X made $P(Y_i \leq k)$ more likely. Hence,  $e^{-\beta_j} < 1$ has the opposite effect, it makes
+$P(Y_i > k)$ more likely. In short, $e^{-\beta_j} < 1$ shrinks the cumulative odds, meaning $P(Y_i \> k)$ increases, and the covariate associated with $\beta_j$ has a positive effect on FLD classification.
 
 **Backwards Model Table**
 
@@ -250,33 +273,43 @@ salt_table = pd.DataFrame({
 display(model_1.summary().tables[1])
 print('Salt Standardization Table (mg)')
 display(salt_table)
+
+intercepts = model_1_no_fit.transform_threshold_params(model_1.params)
 ```
 
-The coefficient interpretations are in order as follows.
+From the above table, we see by taking $e^{-coef}$, we interpret our coefficients as follows.
 
-Holding all other covariates constant, a 1 unit increase in BMI increases the log odds of moving up an FLD category by 0.1931.
+Holding all other covariates constant, a one unit increase in bmi scales the cumulative odds by `{python} float(round(np.exp(-0.1931), 3))`, meaning an increase in BMI has a positive effect on FLD classification.
 
-Holding all other covariates constant, a 1 unit increase in age increases the log odds of moving up an FLD category by 0.0164.
+Holding all other covariates constant, being male increases the cumulative odds by `{python} float(round(np.exp(-0.2282), 3))`, meaning being male over female has a positive effect on FLD classification.
 
-Holding all other covariates constant, male sex increases the log odds of moving up in FLD category by 0.2282 over female sex.
+Holding all other covariates constant, a one unit increase in sex scales the cumulative odds by `{python} float(round(np.exp(-0.0164), 3))`, meaning an increase in age has a positive effect on FLD classification.
 
-Holding all other covariates constant, a 1 standard deviation increase in salt(mg) increases the log odds of moving up an FLD category by 0.2105
+Holding all other covariates constant, a one standard deviation increase in salt intake (mg) scales the cumulative odds by `{python} float(round(np.exp(-0.2105), 3))`, meaning an increase in salt intake has a positive effect on FLD classification.
 
-Holding all other covariates constant, being prediabetic or borderline diabetec increases the log odds of moving up in FLD category by 0.5368 over having no prediabtes or diabetes diagnosis.
+Holding all other covariates constant, being prediabtic over no diabetic condition scales the cumulative odds by `{python} float(round(np.exp(-0.5368), 3))`, meaning being prediabetic has a positive effect on FLD classification.
 
-Holding all other covariates constant, being diabetec increases the log odds of moving up in FLD category by 0.1993
+Holding all other covariates constant, being diabtic over no diabetic condition scales the cumulative odds by `{python} float(round(np.exp(-0.1993), 3))`, meaning being diabetic has a positive effect on FLD classification.
 
-Holding all other covariates constant, a one unit increase in vitamin e (mg) decreases the log odds in moving up in FLD category by 0.0333.
+Holding all other covariates constant, a one unit increase in Vitamin E scales the cumulative odds by `{python} float(round(np.exp(0.0333), 3))`, meaning an increase in Vitamin E intake has a negative effect on FLD classification
 
-For an individual with all covariates 0 and average daily salt intake, the log odds of being in FLD category 0 are 5.7762.
+As far as interpretting intercepts goes, python does not provide the intercepts in proper form, the a link to an explanation can be found [here](https://www.statsmodels.org/dev/examples/notebooks/generated/ordinal_regression.html). I will interpret them now.
 
-For an individual with all covariates 0 and average daily salt intake, the log odds of being in FLD category 1 or lower is -0.3363.
+For a female with a BMI of 0, age of 0, average salt intake, no diabetic condition, and no vitamin e intake, her being in group 0 is `{python} float(round(np.exp(intercepts[1]), 3))` times as likely as being an FLD group higher than 0. This makes sense, as no individual would actually have no bmi or age, so intercept interpretation here is not too relevant without individual data. We still proceed as follows to check this projects boxes.
 
-For an individual with all covariates 0 and average daily salt intake, the log odds of being in FLD category 2 or lower is -0.0813.
+For a female with a BMI of 0, age of 0, average salt intake, no diabetic condition, and no vitamin e intake, her being in group 1 or lower is `{python} float(round(np.exp(intercepts[2]), 3))` times as likely as being an FLD group higher than 1.
 
-Important to note, none of these log odds make logical sense, as someone will not have an age of 0 for example, they are simply building blocks to interpret a given individual. Additionally, the intercepts themselves don't make interpretive sense without an individual added. In my final report, I will run a standard individual and interpret that outcome, the above is an exercise in interpreation as the rubric asks for.
+For a female with a BMI of 0, age of 0, average salt intake, no diabetic condition, and no vitamin e intake, her being in group 2 or lower is `{python} float(round(np.exp(intercepts[3]), 3))` times as likely as being in FLD group 3.
 
-As far as my research question goes, we have some dissapointing results. Alcohol showed no significance in any way, which we clinically know to not be the case. It may have something to do with my cutpoints for frequently drinking, or medical intervention with alcoholics. With more time, we could explore the former, but not the latter.
+From this model interpretation we draw the following conclusions, most of which line up with clinical expecations. As age and BMI increase, FLD the probability of someone being in a higher FLD category increases. This makes sense, as age generally worsens health on the whole, and BMI is a mask for body fat, which is going to obviously be highly associated with liver fat. Being male also has a positive effect on FLD categorization, which could be partly genetic, but also lifestyle indicative; men are more likely to drink alcohol and be overweight after all. 
+
+Interestingly, prediabetes seems to have a larger effect than diabetes. This could be an issue with a dataset, but I likely suspect it is because of type 1 and type 2 diabetes differences. Someone who is prediabetic is prediabetic type 2, meaning their diabetes is more than likely lifestyle induced. Someone who is type 1 has diabetes which is not lifestyle induced, and therefore has likely managed their potential liver damage, compared to someone who is type 2 who damaged their liver on the way to their diagnosis. It would be interesting to have a diabetes type classifier, but this information was not available.
+
+Diet covariates are discussed more below.
+
+### Overall Research Question Connection
+
+As far as my research question goes, we have some interesting results. Alcohol shows some significance in our clinically selected model, but not in our backwards selected one. It will be interesting to see how this performance goes in our HUM comparison.
 
 As far as exploring age goes, we see that obviously an increase in age increases FLD chance. However, its nowhere near as strong as other covariates. This should be a warning sign to young people, you are not invincible, and while your age may protect you slightly, it won't as much as your other habits which cause diseases like diabetes or obesity.
 
@@ -288,7 +321,7 @@ I also originally had model convergence issues, which was fixed by just increasi
 
 Furthermore, Python has no native method to run a Brant-Wald for proportionalty, hence I had to port my data over to R, run the same model, and perform the test before moving on.
 
-Statistically, there seem to be some in depth masking issues between diet covariates and exercise. The flip-flopping of significant covariates indicates that there are complex relationships between diet covariates. For example, salt seems significant in our small mode, but has no strong clinical significance in fat production. However, a high salt diet is often a sign of a diet high in unhealthy processed foods, so salt may just be the best mask for overall diet. Because of limited time in addressing all the complex relationships between, the backwards selection model provides the best chance of finding truly significant predictors. Another example would be fiber. High fiber has no clinical significance in liver fat, but in the EDA it showed promise, and in some models in this document it did too, but its more than likely just a mask for a healhty lifestyle.
+Statistically, there seem to be some in depth masking issues between diet covariates and exercise. The flip-flopping of significant covariates indicates that there are complex relationships between diet covariates. For example, salt seems significant in our small model, but has no strong clinical significance in fat production. However, a high salt diet is often a sign of a diet high in unhealthy processed foods, so salt may just be the best mask for overall diet. Because of limited time in addressing all the complex relationships between all diet covariates, the backwards selection model provides the best chance of finding truly significant predictors. Basically, without time to unmask every diet predictor, the best outcome can be find by picking the diet covariates with the strongest signal, ie salt. It has a low VIF compared to the clinical diet covariates, like sugar and fat, and likely signals the same message about an unhealhty diet. Another example would be fiber. High fiber has no clinical significance in liver fat, but in the EDA it showed promise, and in some models in this document it did too, but its more than likely just a mask for a healthy lifestyle. In short, the statistical solution for highly correlated diet covariates is to pick the one with the strongest signal for what they all try to convey, which seems to be salt.
 
 ## Steps for Final Report
 
@@ -405,11 +438,13 @@ display(initial_prop_test)
 
 XY1 = preprop_XY.drop(columns = ['cig_smoker_ever', 'sleep_weekday', 'no_ins_12_mon', 'born_us', 'fam_inc_to_pov', 'hep_b', 'mins_seden_daily_stan', 'sugar_stan', 'fat_stan', 'chol_stan', 'water_stan', 'private_ins', 'rare_drink', 'some_drink', 'often_drink', 'drk_but_no12', 'fiber', 'mexican', 'black', 'asian', 'other', 'hispanic'])
 
-model_1 = OrderedModel(
+model_1_no_fit = OrderedModel(
     XY1['cap_cat'],
     XY1.drop(columns = 'cap_cat'),
     distr = 'logit'
-).fit(maxiter = 100000, disp = False)
+)
+
+model_1 = model_1_no_fit.fit(maxiter = 100000, disp = False)
 
 display(model_1.summary().tables[1])
 ```
@@ -490,6 +525,8 @@ salt_table = pd.DataFrame({
 display(model_1.summary().tables[1])
 print('Salt Standardization Table (mg)')
 display(salt_table)
+
+intercepts = model_1_no_fit.transform_threshold_params(model_1.params)
 ```
 
 ### R Code in Seperate File
